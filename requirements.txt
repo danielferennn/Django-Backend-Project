@@ -11,9 +11,11 @@ click-repl==0.3.0
 Django==5.2.6
 djangorestframework==3.16.1
 djangorestframework_simplejwt==5.5.1
+django-extensions==3.2.3
 idna==3.10
 kombu==5.5.4
 packaging==25.0
+Pillow==11.0.0
 prompt_toolkit==3.0.52
 PyJWT==2.10.1
 python-dateutil==2.9.0.post0
@@ -25,3 +27,6 @@ tzdata==2025.2
 urllib3==2.5.0
 vine==5.1.0
 wcwidth==0.2.13
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+redis==5.0.4

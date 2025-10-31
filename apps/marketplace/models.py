@@ -12,6 +12,7 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveIntegerField(default=0)
     description = models.TextField()
+    image = models.ImageField(upload_to='product_images/', blank=True, null=True)
 
 class Transaction(models.Model):
     class TransactionStatus(models.TextChoices):
@@ -22,6 +23,7 @@ class Transaction(models.Model):
         RELEASED = 'RELEASED', 'Escrow Released'
         COMPLETED = 'COMPLETED', 'Completed'
         FAILED = 'FAILED', 'Failed'
+        REJECTED = 'REJECTED', 'Rejected'
 
     buyer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='purchases')
     seller = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='sales')
@@ -29,5 +31,15 @@ class Transaction(models.Model):
     quantity = models.PositiveIntegerField()
     total_price = models.DecimalField(max_digits=12, decimal_places=2)
     status = models.CharField(max_length=20, choices=TransactionStatus.choices, default=TransactionStatus.PENDING)
+    buyer_full_name = models.CharField(max_length=255, blank=True)
+    shipping_address = models.TextField(blank=True)
+    buyer_phone_number = models.CharField(max_length=32, blank=True)
     payment_gateway_id = models.CharField(max_length=255, blank=True, null=True)
+    qris_payload = models.TextField(blank=True, null=True)
+    qris_image = models.ImageField(upload_to='qris_images/', blank=True, null=True)
+    payment_proof = models.ImageField(upload_to='payment_proofs/', blank=True, null=True)
+    payment_proof_uploaded_at = models.DateTimeField(blank=True, null=True)
+    payment_expires_at = models.DateTimeField(blank=True, null=True)
+    paid_at = models.DateTimeField(blank=True, null=True)
+    otp = models.CharField(max_length=6, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
