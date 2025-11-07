@@ -19,3 +19,7 @@ class DeliverySerializer(serializers.ModelSerializer):
     class Meta:
         model = Delivery
         fields = '__all__'
+
+
+class OtpValidationSerializer(serializers.Serializer):
+    otp = serializers.CharField(max_length=6)
