@@ -1,32 +1,31 @@
-from rest_framework import viewsets, generics, permissions, status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from django.shortcuts import get_object_or_404
-from django.db import transaction as db_transaction
-from django.utils import timezone
-from django.conf import settings
 import random
+import string
+from datetime import timedelta
+
+from django.db import models, transaction as db_transaction
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from drf_spectacular.utils import OpenApiResponse, extend_schema
 
 from .models import Store, Product, Transaction
-from .serializers import StoreSerializer, ProductSerializer, TransactionSerializer
+from .serializers import (
+    PaymentProofUploadSerializer,
+    ProductSerializer,
+    StoreSerializer,
+    TransactionSerializer,
+    TransactionShippingSerializer,
+)
 from .permissions import IsStoreOwner
 from .services import PaymentGatewayService
 from apps.lockers.models import Locker
 from apps.lockers.services import BlynkAPIService
-from apps.lockers.tasks import send_notification_task
-from apps.users.models import User
-import logging
-
-logger = logging.getLogger(__name__)
-
-
-def _safe_notify(user_id, message):
-    try:
-        send_notification_task.delay(user_id=user_id, message=message)
-    except Exception as exc:  # pragma: no cover - fallback for dev without broker
-        logger.warning("Notification task fallback due to %s. Running synchronously.", exc)
-        send_notification_task.run(user_id=user_id, message=message)
+from apps.notifications.tasks import push_notification_task
 
 class MyStoreView(generics.RetrieveUpdateAPIView):
     serializer_class = StoreSerializer
@@ -40,12 +39,8 @@ class MyStoreView(generics.RetrieveUpdateAPIView):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
-
-    def get_permissions(self):
-        if self.request.method in permissions.SAFE_METHODS:
-            return [permissions.IsAuthenticated()]
-        return [permissions.IsAuthenticated(), IsStoreOwner()]
+    permission_classes = [permissions.IsAuthenticated, IsStoreOwner]
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
         user = self.request.user
@@ -123,10 +118,10 @@ class CreateTransactionView(generics.CreateAPIView):
         
         if product.stock < quantity:
             return Response({"error": "Not enough stock."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        buyer_full_name = request.data.get('buyer_full_name', '').strip()
-        shipping_address = request.data.get('shipping_address', '').strip()
-        buyer_phone_number = request.data.get('buyer_phone_number', '').strip()
+
+        buyer_full_name = request.data.get('buyer_full_name', '')
+        shipping_address = request.data.get('shipping_address', '')
+        buyer_phone_number = request.data.get('buyer_phone_number', '')
 
         with db_transaction.atomic():
             product.stock -= quantity
@@ -134,11 +129,10 @@ class CreateTransactionView(generics.CreateAPIView):
             transaction = Transaction.objects.create(
                 buyer=request.user, seller=product.store.owner, product=product,
                 quantity=quantity, total_price=product.price * quantity,
-                buyer_full_name=buyer_full_name,
-                shipping_address=shipping_address,
-                buyer_phone_number=buyer_phone_number,
+                buyer_full_name=buyer_full_name, shipping_address=shipping_address,
+                buyer_phone_number=buyer_phone_number
             )
-        
+
         pg_service = PaymentGatewayService()
         success, gateway_data = pg_service.create_payment(
             transaction_id=transaction.id, amount=transaction.total_price,
@@ -159,136 +153,7 @@ class CreateTransactionView(generics.CreateAPIView):
         response_data['expires_at'] = expires_at.isoformat() if expires_at else None
         return Response(response_data, status=status.HTTP_201_CREATED)
 
-
-class UploadPaymentProofView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
-
-    def post(self, request, *args, **kwargs):
-        transaction = get_object_or_404(Transaction, pk=kwargs.get('pk'), buyer=request.user)
-
-        if transaction.status in {
-            Transaction.TransactionStatus.ESCROW,
-            Transaction.TransactionStatus.PAID,
-            Transaction.TransactionStatus.COMPLETED,
-            Transaction.TransactionStatus.RELEASED,
-        } and transaction.payment_proof:
-            return Response({"detail": "Payment proof already processed."}, status=status.HTTP_409_CONFLICT)
-
-        file_obj = request.FILES.get('payment_proof')
-        if not file_obj:
-            return Response({"detail": "payment_proof is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-        if file_obj.size > 5 * 1024 * 1024:
-            return Response({"detail": "File exceeds 5MB limit."}, status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
-
-        content_type = (file_obj.content_type or '').lower()
-        allowed_types = {'image/jpeg', 'image/jpg', 'image/png'}
-        filename = (file_obj.name or '').lower()
-        allowed_extensions = ('.jpg', '.jpeg', '.png')
-        if content_type not in allowed_types and not filename.endswith(allowed_extensions):
-            return Response(
-                {"detail": "Invalid file type. Allowed types: JPG, JPEG, PNG."},
-                status=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            )
-
-        if transaction.payment_proof:
-            transaction.payment_proof.delete(save=False)
-
-        transaction.payment_proof = file_obj
-        transaction.payment_proof_uploaded_at = timezone.now()
-        transaction.save(update_fields=['payment_proof', 'payment_proof_uploaded_at'])
-
-        serializer = TransactionSerializer(transaction, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class UpdateTransactionShippingView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        transaction = get_object_or_404(Transaction, pk=kwargs.get('pk'), buyer=request.user)
-
-        full_name = (request.data.get('buyer_full_name') or '').strip()
-        address = (request.data.get('shipping_address') or '').strip()
-        phone = (request.data.get('buyer_phone_number') or '').strip()
-
-        if not full_name or not address or not phone:
-            return Response(
-                {"detail": "buyer_full_name, shipping_address, and buyer_phone_number are required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        transaction.buyer_full_name = full_name
-        transaction.shipping_address = address
-        transaction.buyer_phone_number = phone
-        transaction.save(update_fields=['buyer_full_name', 'shipping_address', 'buyer_phone_number'])
-
-        serializer = TransactionSerializer(transaction, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class ApproveTransactionView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        transaction = get_object_or_404(Transaction, pk=kwargs.get('pk'), seller=request.user)
-        if transaction.status not in {
-            Transaction.TransactionStatus.PENDING,
-            Transaction.TransactionStatus.REJECTED,
-        }:
-            return Response({"detail": "Transaction is not awaiting manual approval."}, status=status.HTTP_400_BAD_REQUEST)
-        if not transaction.payment_proof:
-            return Response({"detail": "Payment proof required before approval."}, status=status.HTTP_400_BAD_REQUEST)
-
-        transaction.status = Transaction.TransactionStatus.ESCROW
-        transaction.paid_at = timezone.now()
-        transaction.save(update_fields=['status', 'paid_at'])
-
-        _safe_notify(transaction.buyer.id, f"Pembayaran untuk '{transaction.product.name}' telah disetujui.")
-
-        serializer = TransactionSerializer(transaction, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class RejectTransactionView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        transaction = get_object_or_404(Transaction, pk=kwargs.get('pk'), seller=request.user)
-        transaction.status = Transaction.TransactionStatus.REJECTED
-        transaction.save(update_fields=['status'])
-
-        _safe_notify(transaction.buyer.id, f"Pembayaran untuk '{transaction.product.name}' ditolak. Silakan hubungi penjual.")
-
-        serializer = TransactionSerializer(transaction, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
-class GenerateOtpView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        transaction = get_object_or_404(Transaction, pk=kwargs.get('pk'), seller=request.user)
-        if transaction.status not in {
-            Transaction.TransactionStatus.ESCROW,
-            Transaction.TransactionStatus.PAID,
-        }:
-            return Response({"detail": "OTP can only be generated after payment approval."}, status=status.HTTP_400_BAD_REQUEST)
-        if not transaction.buyer_full_name or not transaction.shipping_address or not transaction.buyer_phone_number:
-            return Response({"detail": "Buyer details are incomplete."}, status=status.HTTP_400_BAD_REQUEST)
-
-        otp = f"{random.randint(0, 999999):06d}"
-        transaction.otp = otp
-        transaction.status = Transaction.TransactionStatus.AWAITING_PICKUP
-        transaction.save(update_fields=['otp', 'status'])
-
-        _safe_notify(transaction.buyer.id, f"OTP untuk '{transaction.product.name}' adalah {otp}.")
-
-        serializer = TransactionSerializer(transaction, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-
+@extend_schema(exclude=True)
 class PaymentWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
     def post(self, request, *args, **kwargs):
@@ -296,10 +161,15 @@ class PaymentWebhookView(APIView):
         if request.data.get('payment_status') == 'success' and transaction.status == Transaction.TransactionStatus.PENDING:
             transaction.status = Transaction.TransactionStatus.ESCROW
             transaction.save()
-            _safe_notify(transaction.seller.id, f"Pembayaran untuk '{transaction.product.name}' berhasil.")
+            push_notification_task.delay(
+                user_id=transaction.seller.id,
+                title="Payment Confirmed",
+                body=f"Pembayaran untuk '{transaction.product.name}' berhasil."
+            )
             return Response(status=status.HTTP_200_OK)
         return Response(status=status.HTTP_400_BAD_REQUEST)
 
+@extend_schema(exclude=True)
 class SellerDepositItemView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request, *args, **kwargs):
@@ -319,6 +189,7 @@ class SellerDepositItemView(APIView):
             return Response({"message": "Locker is open. Please deposit the item."}, status=status.HTTP_200_OK)
         return Response({"error": "Failed to open locker."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@extend_schema(exclude=True)
 class ConfirmMarketplaceDepositWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
     def post(self, request, *args, **kwargs):
@@ -326,12 +197,17 @@ class ConfirmMarketplaceDepositWebhookView(APIView):
         if transaction:
             otp = transaction.otp or f"{random.randint(0, 999999):06d}"
             transaction.status = Transaction.TransactionStatus.AWAITING_PICKUP
-            transaction.otp = otp
-            transaction.save(update_fields=['status', 'otp'])
-            _safe_notify(transaction.buyer.id, f"Barang '{transaction.product.name}' siap diambil. Kode OTP: {otp}")
+            transaction.save()
+            otp = "654321"
+            push_notification_task.delay(
+                user_id=transaction.buyer.id,
+                title="Locker Ready",
+                body=f"Barang '{transaction.product.name}' siap diambil. Kode OTP: {otp}"
+            )
             return Response(status=status.HTTP_200_OK)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+@extend_schema(exclude=True)
 class BuyerRetrieveItemView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request, *args, **kwargs):
@@ -348,6 +224,7 @@ class BuyerRetrieveItemView(APIView):
             return Response({"message": "Locker is open. Please retrieve your item."}, status=status.HTTP_200_OK)
         return Response({"error": "Failed to open locker."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@extend_schema(exclude=True)
 class ConfirmMarketplaceRetrievalWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
     def post(self, request, *args, **kwargs):
@@ -363,34 +240,165 @@ class ConfirmMarketplaceRetrievalWebhookView(APIView):
                 if locker:
                     locker.status = Locker.LockerStatus.AVAILABLE
                     locker.save()
-                _safe_notify(transaction.seller.id, f"Dana untuk '{transaction.product.name}' telah dilepaskan.")
+                push_notification_task.delay(
+                    user_id=transaction.seller.id,
+                    title="Escrow Released",
+                    body=f"Dana untuk '{transaction.product.name}' telah dilepaskan."
+                )
                 return Response(status=status.HTTP_200_OK)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class QrisConfirmWebhookView(APIView):
-    authentication_classes = []
-    permission_classes = []
+def _ensure_seller(user, transaction: Transaction):
+    if user.is_staff:
+        return
+    if transaction.seller != user:
+        raise PermissionDenied("Only the seller can perform this action.")
 
-    def post(self, request, *args, **kwargs):
-        expected_secret = getattr(settings, 'QRIS_WEBHOOK_SECRET', None)
-        provided_secret = request.headers.get('X-Qris-Signature')
-        if expected_secret and provided_secret != expected_secret:
-            return Response(status=status.HTTP_403_FORBIDDEN)
 
-        reference = request.data.get('payment_reference') or request.data.get('reference')
-        if not reference:
-            return Response({"detail": "Missing payment reference."}, status=status.HTTP_400_BAD_REQUEST)
+def _ensure_participant(user, transaction: Transaction):
+    if user.is_staff:
+        return
+    if transaction.seller != user and transaction.buyer != user:
+        raise PermissionDenied("You are not part of this transaction.")
 
-        try:
-            transaction = Transaction.objects.get(payment_gateway_id=reference)
-        except Transaction.DoesNotExist:
-            return Response({"detail": "Transaction not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if transaction.status != Transaction.TransactionStatus.ESCROW:
-            transaction.status = Transaction.TransactionStatus.ESCROW
-            transaction.paid_at = timezone.now()
-            transaction.save(update_fields=['status', 'paid_at'])
-            _safe_notify(transaction.seller.id, f"Pembayaran untuk '{transaction.product.name}' telah dikonfirmasi.")
+class TransactionListView(generics.ListAPIView):
+    serializer_class = TransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-        return Response({"detail": "OK"}, status=status.HTTP_200_OK)
+    def get_queryset(self):
+        user = self.request.user
+        qs = Transaction.objects.select_related('buyer', 'seller', 'product')
+        if user.is_staff:
+            return qs
+        role = self.request.query_params.get('role')
+        if role == 'seller':
+            return qs.filter(seller=user)
+        if role == 'buyer':
+            return qs.filter(buyer=user)
+        return qs.filter(models.Q(seller=user) | models.Q(buyer=user))
+
+
+class TransactionDetailView(generics.RetrieveAPIView):
+    serializer_class = TransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Transaction.objects.select_related('buyer', 'seller', 'product')
+
+    def get_object(self):
+        transaction = super().get_object()
+        _ensure_participant(self.request.user, transaction)
+        return transaction
+
+
+class TransactionApproveView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=None, responses=TransactionSerializer)
+    def post(self, request, pk):
+        transaction = get_object_or_404(Transaction, pk=pk)
+        _ensure_seller(request.user, transaction)
+        transaction.status = Transaction.TransactionStatus.ESCROW
+        transaction.save(update_fields=['status', 'updated_at'])
+        push_notification_task.delay(
+            user_id=transaction.buyer.id,
+            title="Order Approved",
+            body=f"Pesanan '{transaction.product.name}' telah disetujui seller."
+        )
+        serializer = TransactionSerializer(transaction, context={'request': request})
+        return Response(serializer.data)
+
+
+class TransactionRejectView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=None, responses=TransactionSerializer)
+    def post(self, request, pk):
+        transaction = get_object_or_404(Transaction, pk=pk)
+        _ensure_seller(request.user, transaction)
+        transaction.status = Transaction.TransactionStatus.REJECTED
+        transaction.save(update_fields=['status', 'updated_at'])
+        push_notification_task.delay(
+            user_id=transaction.buyer.id,
+            title="Order Rejected",
+            body=f"Pesanan '{transaction.product.name}' ditolak seller."
+        )
+        serializer = TransactionSerializer(transaction, context={'request': request})
+        return Response(serializer.data)
+
+
+class TransactionPaymentProofUploadView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(request=PaymentProofUploadSerializer, responses=TransactionSerializer)
+    def post(self, request, pk):
+        transaction = get_object_or_404(Transaction, pk=pk)
+        _ensure_participant(request.user, transaction)
+        if request.user != transaction.buyer and not request.user.is_staff:
+            raise PermissionDenied("Only the buyer can upload payment proof.")
+
+        payment_file = request.FILES.get('payment_proof')
+        if not payment_file:
+            return Response({'error': 'payment_proof file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        transaction.payment_proof = payment_file
+        now = timezone.now()
+        transaction.payment_proof_uploaded_at = now
+        transaction.paid_at = now
+        transaction.status = Transaction.TransactionStatus.PAID
+        transaction.save(update_fields=['payment_proof', 'payment_proof_uploaded_at', 'paid_at', 'status', 'updated_at'])
+
+        push_notification_task.delay(
+            user_id=transaction.seller.id,
+            title="Payment Proof Uploaded",
+            body=f"Bukti pembayaran untuk '{transaction.product.name}' telah diunggah."
+        )
+
+        serializer = TransactionSerializer(transaction, context={'request': request})
+        return Response(serializer.data)
+
+
+class TransactionGenerateOtpView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=None, responses=TransactionSerializer)
+    def post(self, request, pk):
+        transaction = get_object_or_404(Transaction, pk=pk)
+        _ensure_seller(request.user, transaction)
+        otp = ''.join(random.choices(string.digits, k=6))
+        transaction.otp_code = otp
+        transaction.status = Transaction.TransactionStatus.AWAITING_PICKUP
+        transaction.payment_expires_at = timezone.now() + timedelta(hours=6)
+        transaction.save(update_fields=['otp_code', 'status', 'payment_expires_at', 'updated_at'])
+
+        push_notification_task.delay(
+            user_id=transaction.buyer.id,
+            title="Pickup OTP",
+            body=f"Kode OTP pengambilan untuk '{transaction.product.name}': {otp}"
+        )
+
+        serializer = TransactionSerializer(transaction, context={'request': request})
+        return Response(serializer.data)
+
+
+class TransactionShippingUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=TransactionShippingSerializer, responses=TransactionSerializer)
+    def post(self, request, pk):
+        transaction = get_object_or_404(Transaction, pk=pk)
+        _ensure_participant(request.user, transaction)
+        serializer = TransactionShippingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(transaction, field, value)
+        transaction.save(update_fields=['buyer_full_name', 'shipping_address', 'buyer_phone_number', 'updated_at'])
+
+        push_notification_task.delay(
+            user_id=transaction.seller.id,
+            title="Shipping Info Updated",
+            body=f"Informasi pengiriman untuk transaksi '{transaction.product.name}' telah diperbarui."
+        )
+
+        return Response(TransactionSerializer(transaction, context={'request': request}).data)

@@ -1,0 +1,1322 @@
+openapi: 3.0.3
+info:
+  title: SmartLocker API
+  version: 2.0.0
+  description: API schema for SmartLocker backend integration.
+paths:
+  /api/schema/:
+    get:
+      operationId: schema_retrieve
+      description: |-
+        OpenApi3 schema for this API. Format can be selected via content negotiation.
+
+        - YAML: application/vnd.oai.openapi
+        - JSON: application/vnd.oai.openapi+json
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - yaml
+      - in: query
+        name: lang
+        schema:
+          type: string
+          enum:
+          - af
+          - ar
+          - ar-dz
+          - ast
+          - az
+          - be
+          - bg
+          - bn
+          - br
+          - bs
+          - ca
+          - ckb
+          - cs
+          - cy
+          - da
+          - de
+          - dsb
+          - el
+          - en
+          - en-au
+          - en-gb
+          - eo
+          - es
+          - es-ar
+          - es-co
+          - es-mx
+          - es-ni
+          - es-ve
+          - et
+          - eu
+          - fa
+          - fi
+          - fr
+          - fy
+          - ga
+          - gd
+          - gl
+          - he
+          - hi
+          - hr
+          - hsb
+          - hu
+          - hy
+          - ia
+          - id
+          - ig
+          - io
+          - is
+          - it
+          - ja
+          - ka
+          - kab
+          - kk
+          - km
+          - kn
+          - ko
+          - ky
+          - lb
+          - lt
+          - lv
+          - mk
+          - ml
+          - mn
+          - mr
+          - ms
+          - my
+          - nb
+          - ne
+          - nl
+          - nn
+          - os
+          - pa
+          - pl
+          - pt
+          - pt-br
+          - ro
+          - ru
+          - sk
+          - sl
+          - sq
+          - sr
+          - sr-latn
+          - sv
+          - sw
+          - ta
+          - te
+          - tg
+          - th
+          - tk
+          - tr
+          - tt
+          - udm
+          - ug
+          - uk
+          - ur
+          - uz
+          - vi
+          - zh-hans
+          - zh-hant
+      tags:
+      - schema
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.oai.openapi:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/vnd.oai.openapi+json:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/iot/events/:
+    post:
+      operationId: v1_iot_events_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IoTIngest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IoTIngest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IoTIngest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IoTEvent'
+          description: ''
+  /api/v1/iot/face-match/:
+    post:
+      operationId: v1_iot_face_match_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FaceMatch'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FaceMatch'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FaceMatch'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceMatchResponse'
+          description: Face match ingestion result
+  /api/v1/lockers/logs/:
+    get:
+      operationId: v1_lockers_logs_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LockerLog'
+          description: ''
+  /api/v1/lockers/otp/validate/:
+    post:
+      operationId: v1_lockers_otp_validate_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpValidation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OtpValidation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OtpValidation'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: OTP validation success
+  /api/v1/marketplace/products/:
+    get:
+      operationId: v1_marketplace_products_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+          description: ''
+    post:
+      operationId: v1_marketplace_products_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Product'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /api/v1/marketplace/products/{id}/:
+    get:
+      operationId: v1_marketplace_products_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    put:
+      operationId: v1_marketplace_products_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Product'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    patch:
+      operationId: v1_marketplace_products_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    delete:
+      operationId: v1_marketplace_products_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/marketplace/store/me/:
+    get:
+      operationId: v1_marketplace_store_me_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+          description: ''
+    put:
+      operationId: v1_marketplace_store_me_update
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Store'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Store'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Store'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+          description: ''
+    patch:
+      operationId: v1_marketplace_store_me_partial_update
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedStore'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedStore'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedStore'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+          description: ''
+  /api/v1/marketplace/transactions/:
+    get:
+      operationId: v1_marketplace_transactions_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/{id}/:
+    get:
+      operationId: v1_marketplace_transactions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/{id}/approve/:
+    post:
+      operationId: v1_marketplace_transactions_approve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/{id}/generate-otp/:
+    post:
+      operationId: v1_marketplace_transactions_generate_otp_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/{id}/payment-proof/:
+    post:
+      operationId: v1_marketplace_transactions_payment_proof_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PaymentProofUpload'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PaymentProofUpload'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/{id}/reject/:
+    post:
+      operationId: v1_marketplace_transactions_reject_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/{id}/shipping/:
+    post:
+      operationId: v1_marketplace_transactions_shipping_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionShipping'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TransactionShipping'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TransactionShipping'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/create/:
+    post:
+      operationId: v1_marketplace_transactions_create_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Transaction'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/notifications/:
+    get:
+      operationId: v1_notifications_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+          description: ''
+  /api/v1/notifications/push/:
+    post:
+      operationId: v1_notifications_push_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPush'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NotificationPush'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NotificationPush'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          description: Notification queued
+  /api/v1/users/login/:
+    post:
+      operationId: v1_users_login_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPair'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/v1/users/login/refresh/:
+    post:
+      operationId: v1_users_login_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/v1/users/profile/:
+    get:
+      operationId: v1_users_profile_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+          description: ''
+  /api/v1/users/register/:
+    post:
+      operationId: v1_users_register_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserRegistration'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRegistration'
+          description: ''
+components:
+  schemas:
+    ActionEnum:
+      enum:
+      - OPEN
+      - CLOSE
+      - DEPOSIT
+      - RETRIEVE
+      type: string
+      description: |-
+        * `OPEN` - Open
+        * `CLOSE` - Close
+        * `DEPOSIT` - Deposit
+        * `RETRIEVE` - Retrieve
+    EventTypeEnum:
+      enum:
+      - GENERIC
+      - DEVICE
+      - FACE_MATCH
+      type: string
+      description: |-
+        * `GENERIC` - Generic
+        * `DEVICE` - Device Event
+        * `FACE_MATCH` - Face Match
+    FaceMatch:
+      type: object
+      properties:
+        face_id:
+          type: string
+          nullable: true
+        confidence:
+          type: number
+          format: double
+        timestamp:
+          type: string
+          format: date-time
+        image_url:
+          type: string
+          format: uri
+        user_id:
+          type: integer
+        metadata: {}
+      required:
+      - confidence
+      - timestamp
+    FaceMatchResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        event_id:
+          type: integer
+        user_id:
+          type: integer
+          nullable: true
+      required:
+      - event_id
+      - status
+    IoTEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        user:
+          type: integer
+          nullable: true
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
+        payload: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - payload
+    IoTIngest:
+      type: object
+      properties:
+        user_id:
+          type: integer
+          nullable: true
+        event_type:
+          $ref: '#/components/schemas/EventTypeEnum'
+        payload: {}
+      required:
+      - payload
+    Locker:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        number:
+          type: string
+          maxLength: 10
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        status:
+          $ref: '#/components/schemas/LockerStatusEnum'
+        blynk_device_token:
+          type: string
+          maxLength: 255
+        blynk_vpin_control:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        blynk_vpin_sensor:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+        last_opened_by:
+          type: integer
+          nullable: true
+      required:
+      - blynk_device_token
+      - blynk_vpin_control
+      - blynk_vpin_sensor
+      - id
+      - number
+      - type
+    LockerLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        locker:
+          allOf:
+          - $ref: '#/components/schemas/Locker'
+          readOnly: true
+        user:
+          allOf:
+          - $ref: '#/components/schemas/UserDetail'
+          readOnly: true
+        action:
+          $ref: '#/components/schemas/ActionEnum'
+        timestamp:
+          type: string
+          format: date-time
+          readOnly: true
+        is_successful:
+          type: boolean
+        details:
+          type: string
+          nullable: true
+      required:
+      - action
+      - id
+      - locker
+      - timestamp
+      - user
+    LockerStatusEnum:
+      enum:
+      - AVAILABLE
+      - OCCUPIED
+      - MAINTENANCE
+      type: string
+      description: |-
+        * `AVAILABLE` - Available
+        * `OCCUPIED` - Occupied
+        * `MAINTENANCE` - Maintenance
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        body:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - body
+      - created_at
+      - id
+      - title
+    NotificationPush:
+      type: object
+      properties:
+        user_id:
+          type: integer
+        title:
+          type: string
+          maxLength: 255
+        body:
+          type: string
+      required:
+      - body
+      - title
+      - user_id
+    OtpValidation:
+      type: object
+      properties:
+        otp:
+          type: string
+          maxLength: 6
+      required:
+      - otp
+    PatchedProduct:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        store:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        stock:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        description:
+          type: string
+    PatchedStore:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/UserDetail'
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+    PaymentProofUpload:
+      type: object
+      properties:
+        payment_proof:
+          type: string
+          format: uri
+      required:
+      - payment_proof
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        store:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        stock:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        description:
+          type: string
+      required:
+      - description
+      - id
+      - name
+      - price
+      - store
+    RoleEnum:
+      enum:
+      - OWNER
+      - COURIER
+      - SELLER
+      - BUYER
+      - ADMIN
+      type: string
+      description: |-
+        * `OWNER` - Owner
+        * `COURIER` - Courier
+        * `SELLER` - Seller
+        * `BUYER` - Buyer
+        * `ADMIN` - Admin
+    Store:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/UserDetail'
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+      required:
+      - id
+      - name
+      - owner
+    TokenObtainPair:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - email
+      - password
+      - refresh
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          writeOnly: true
+      required:
+      - access
+      - refresh
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        buyer:
+          allOf:
+          - $ref: '#/components/schemas/UserDetail'
+          readOnly: true
+        seller:
+          allOf:
+          - $ref: '#/components/schemas/UserDetail'
+          readOnly: true
+        buyer_name:
+          type: string
+          readOnly: true
+        seller_name:
+          type: string
+          readOnly: true
+        product:
+          allOf:
+          - $ref: '#/components/schemas/Product'
+          readOnly: true
+        product_name:
+          type: string
+          readOnly: true
+        quantity:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+        total_price:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        status:
+          allOf:
+          - $ref: '#/components/schemas/TransactionStatusEnum'
+          readOnly: true
+        payment_gateway_id:
+          type: string
+          readOnly: true
+          nullable: true
+        payment_proof:
+          type: string
+          format: uri
+          readOnly: true
+          nullable: true
+        payment_proof_url:
+          type: string
+          readOnly: true
+        payment_proof_uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        payment_expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        qris_payload:
+          type: string
+          readOnly: true
+        qris_image:
+          type: string
+          readOnly: true
+        buyer_full_name:
+          type: string
+          maxLength: 255
+        shipping_address:
+          type: string
+        buyer_phone_number:
+          type: string
+          maxLength: 32
+        otp_code:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+      required:
+      - buyer
+      - buyer_name
+      - created_at
+      - id
+      - otp_code
+      - paid_at
+      - payment_expires_at
+      - payment_gateway_id
+      - payment_proof
+      - payment_proof_uploaded_at
+      - payment_proof_url
+      - product
+      - product_name
+      - qris_image
+      - qris_payload
+      - quantity
+      - seller
+      - seller_name
+      - status
+      - total_price
+      - updated_at
+    TransactionShipping:
+      type: object
+      properties:
+        buyer_full_name:
+          type: string
+          maxLength: 255
+        shipping_address:
+          type: string
+        buyer_phone_number:
+          type: string
+          maxLength: 32
+      required:
+      - buyer_full_name
+      - buyer_phone_number
+      - shipping_address
+    TransactionStatusEnum:
+      enum:
+      - PENDING
+      - PAID
+      - ESCROW
+      - AWAITING_PICKUP
+      - RELEASED
+      - COMPLETED
+      - FAILED
+      - REJECTED
+      type: string
+      description: |-
+        * `PENDING` - Pending Payment
+        * `PAID` - Paid
+        * `ESCROW` - Escrow
+        * `AWAITING_PICKUP` - Awaiting Pickup
+        * `RELEASED` - Escrow Released
+        * `COMPLETED` - Completed
+        * `FAILED` - Failed
+        * `REJECTED` - Rejected
+    TypeEnum:
+      enum:
+      - INBOUND
+      - STORAGE
+      - MARKETPLACE
+      type: string
+      description: |-
+        * `INBOUND` - Inbound
+        * `STORAGE` - Storage
+        * `MARKETPLACE` - Marketplace
+    UserDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        face_id:
+          type: string
+          nullable: true
+          maxLength: 32
+      required:
+      - email
+      - id
+      - username
+    UserRegistration:
+      type: object
+      properties:
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          writeOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        face_id:
+          type: string
+          nullable: true
+          maxLength: 32
+      required:
+      - email
+      - password
+      - username
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

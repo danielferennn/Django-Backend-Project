@@ -12,7 +12,10 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2)
     stock = models.PositiveIntegerField(default=0)
     description = models.TextField()
-    image = models.ImageField(upload_to='product_images/', blank=True, null=True)
+    image = models.ImageField(upload_to='products/', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
 
 class Transaction(models.Model):
     class TransactionStatus(models.TextChoices):
@@ -43,3 +46,17 @@ class Transaction(models.Model):
     paid_at = models.DateTimeField(blank=True, null=True)
     otp = models.CharField(max_length=6, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+    payment_proof = models.FileField(upload_to='payment_proofs/', blank=True, null=True)
+    payment_proof_uploaded_at = models.DateTimeField(blank=True, null=True)
+    paid_at = models.DateTimeField(blank=True, null=True)
+    payment_expires_at = models.DateTimeField(blank=True, null=True)
+    qris_payload = models.TextField(blank=True)
+    qris_image = models.CharField(max_length=255, blank=True)
+    buyer_full_name = models.CharField(max_length=255, blank=True)
+    shipping_address = models.TextField(blank=True)
+    buyer_phone_number = models.CharField(max_length=32, blank=True)
+    otp_code = models.CharField(max_length=6, blank=True, db_column='otp')
+
+    class Meta:
+        ordering = ['-created_at']

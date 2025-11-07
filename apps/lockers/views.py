@@ -1,11 +1,22 @@
-from rest_framework.views import APIView
+from django.conf import settings
+from drf_spectacular.utils import OpenApiResponse, extend_schema
+from rest_framework import generics, permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from rest_framework import status, permissions
+from rest_framework.views import APIView
+
+from apps.iot.models import IoTEvent
+from apps.marketplace.models import Transaction
+from apps.notifications.tasks import push_notification_task
+from apps.users.models import User
+
 from .models import Delivery, Locker, LockerLog
 from .permissions import IsCourierUser, IsOwnerUser
+from .serializers import LockerLogSerializer, OtpValidationSerializer
 from .services import BlynkAPIService
 from .tasks import send_notification_task
 
+@extend_schema(exclude=True)
 class VerifyDeliveryView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsCourierUser]
 
@@ -48,6 +59,7 @@ class VerifyDeliveryView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@extend_schema(exclude=True)
 class ConfirmDepositWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -82,6 +94,7 @@ class ConfirmDepositWebhookView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@extend_schema(exclude=True)
 class OpenStorageLockerView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsOwnerUser]
 
@@ -115,3 +128,71 @@ class OpenStorageLockerView(APIView):
             return Response({'message': 'Locker is open. Please retrieve your item.'}, status=status.HTTP_200_OK)
         except Locker.DoesNotExist:
             return Response({'error': 'Locker not found or is not occupied.'}, status=status.HTTP_404_NOT_FOUND)
+
+
+class LockerLogListView(generics.ListAPIView):
+    serializer_class = LockerLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = LockerLog.objects.select_related('locker', 'user')
+        user = self.request.user
+        if getattr(user, 'is_staff', False):
+            return queryset
+        role = getattr(user, 'role', None)
+        if role == User.Role.OWNER:
+            return queryset.filter(locker__last_opened_by=user)
+        return queryset.filter(user=user)
+
+
+def _require_device_token(request):
+    expected = getattr(settings, 'SMARTLOCKER_DEVICE_TOKEN', None)
+    if not expected:
+        return
+    provided = request.headers.get('X-Device-Token')
+    if provided != expected:
+        raise PermissionDenied('Invalid device token')
+
+
+class ValidateOtpView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    @extend_schema(request=OtpValidationSerializer, responses={'200': OpenApiResponse(description='OTP validation success')})
+    def post(self, request, *args, **kwargs):
+        _require_device_token(request)
+        serializer = OtpValidationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        otp_code = serializer.validated_data['otp']
+
+        transaction = Transaction.objects.filter(otp_code=otp_code).order_by('-updated_at').first()
+        if not transaction:
+            return Response({'status': 'invalid'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if transaction.status != Transaction.TransactionStatus.RELEASED:
+            transaction.status = Transaction.TransactionStatus.RELEASED
+            transaction.save(update_fields=['status', 'updated_at'])
+
+        event = IoTEvent.objects.create(
+            user=transaction.buyer,
+            event_type=IoTEvent.EventType.DEVICE,
+            payload={'event': 'otp_validated', 'transaction_id': transaction.id},
+        )
+
+        push_notification_task.delay(
+            user_id=transaction.seller.id,
+            title='OTP Validated',
+            body=f'OTP {otp_code} telah divalidasi. Locker siap dibuka.'
+        )
+
+        if transaction.buyer_id:
+            push_notification_task.delay(
+                user_id=transaction.buyer.id,
+                title='OTP Digunakan',
+                body='Kode OTP Anda digunakan untuk membuka locker.'
+            )
+
+        return Response({
+            'status': 'ok',
+            'transaction_id': transaction.id,
+            'event_id': event.id,
+        }, status=status.HTTP_200_OK)

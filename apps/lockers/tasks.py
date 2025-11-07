@@ -1,11 +1,12 @@
-from celery import shared_task
 import time
 
+from celery import shared_task
+
+from apps.notifications.tasks import push_notification_task
+
+
 @shared_task
-def send_notification_task(user_id, message):
-    time.sleep(2)
-    print(f"--- ASYNC NOTIFICATION ---")
-    print(f"To User ID: {user_id}")
-    print(f"Message: {message}")
-    print(f"--------------------------")
-    return f"Notification sent to user {user_id}"
+def send_notification_task(user_id, message, title="SmartLocker Update"):
+    time.sleep(1)
+    push_notification_task.delay(user_id=user_id, title=title, body=message)
+    return f"Notification queued for user {user_id}"
