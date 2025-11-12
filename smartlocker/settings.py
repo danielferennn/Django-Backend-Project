@@ -14,11 +14,26 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 SERVE_MEDIA = os.getenv('SERVE_MEDIA', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = [
+default_allowed_hosts = [
+    '127.0.0.1',
+    'localhost',
+    '0.0.0.0',
+    'smartlocker-backend',
+    'backend',
+    'host.docker.internal',
+]
+env_allowed_hosts = [
     host.strip()
-    for host in os.getenv('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+    for host in os.getenv('ALLOWED_HOSTS', '').split(',')
     if host.strip()
 ]
+ALLOWED_HOSTS = []
+for host in env_allowed_hosts + default_allowed_hosts:
+    if host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
+if DEBUG:
+    # Allow all hosts in local/dev usage to avoid DisallowedHost when accessed via LAN IP.
+    ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -32,7 +47,6 @@ INSTALLED_APPS = [
     # Aplikasi Pihak Ketiga
     'rest_framework',
     'drf_spectacular',
-    'django_extensions',
     'rest_framework_simplejwt',
     
     # Aplikasi Saya
@@ -41,6 +55,7 @@ INSTALLED_APPS = [
     'apps.marketplace',
     'apps.iot',
     'apps.notifications',
+    'apps.package_center',
 ]
 
 MIDDLEWARE = [
@@ -83,6 +98,7 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
+
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},

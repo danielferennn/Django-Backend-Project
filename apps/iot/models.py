@@ -6,7 +6,6 @@ class IoTEvent(models.Model):
     class EventType(models.TextChoices):
         GENERIC = 'GENERIC', 'Generic'
         DEVICE = 'DEVICE', 'Device Event'
-        FACE_MATCH = 'FACE_MATCH', 'Face Match'
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

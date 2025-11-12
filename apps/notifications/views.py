@@ -17,11 +17,11 @@ class NotificationListView(generics.ListAPIView):
 
 
 class NotificationPushView(APIView):
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
 
     @extend_schema(request=NotificationPushSerializer, responses={'201': OpenApiResponse(description='Notification queued')})
     def post(self, request):
         serializer = NotificationPushSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        push_notification_task.delay(**serializer.validated_data)
+        push_notification_task(**serializer.validated_data)
         return Response({'status': 'queued'}, status=status.HTTP_201_CREATED)

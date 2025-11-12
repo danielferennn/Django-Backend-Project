@@ -176,33 +176,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/IoTEvent'
           description: ''
-  /api/v1/iot/face-match/:
-    post:
-      operationId: v1_iot_face_match_create
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/FaceMatch'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/FaceMatch'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/FaceMatch'
-        required: true
-      security:
-      - jwtAuth: []
-      - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FaceMatchResponse'
-          description: Face match ingestion result
   /api/v1/lockers/logs/:
     get:
       operationId: v1_lockers_logs_list
@@ -778,46 +751,10 @@ components:
       enum:
       - GENERIC
       - DEVICE
-      - FACE_MATCH
       type: string
       description: |-
         * `GENERIC` - Generic
         * `DEVICE` - Device Event
-        * `FACE_MATCH` - Face Match
-    FaceMatch:
-      type: object
-      properties:
-        face_id:
-          type: string
-          nullable: true
-        confidence:
-          type: number
-          format: double
-        timestamp:
-          type: string
-          format: date-time
-        image_url:
-          type: string
-          format: uri
-        user_id:
-          type: integer
-        metadata: {}
-      required:
-      - confidence
-      - timestamp
-    FaceMatchResponse:
-      type: object
-      properties:
-        status:
-          type: string
-        event_id:
-          type: integer
-        user_id:
-          type: integer
-          nullable: true
-      required:
-      - event_id
-      - status
     IoTEvent:
       type: object
       properties:

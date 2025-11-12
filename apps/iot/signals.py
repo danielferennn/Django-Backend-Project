@@ -28,10 +28,7 @@ def notify_priority_events(sender, instance: IoTEvent, created: bool, **kwargs) 
 
     payload = instance.payload or {}
     event_key = (payload.get('event') or instance.event_type or '').upper()
-    if instance.event_type == IoTEvent.EventType.FACE_MATCH:
-        message = f"Wajah dikenali dengan keyakinan {payload.get('confidence', 'n/a')}."
-    else:
-        message = EVENT_MESSAGES.get(event_key)
+    message = EVENT_MESSAGES.get(event_key)
 
     if not message:
         return
@@ -43,9 +40,8 @@ def notify_priority_events(sender, instance: IoTEvent, created: bool, **kwargs) 
         User = get_user_model()
         target_ids = list(User.objects.filter(is_superuser=True).values_list('id', flat=True))
 
-    for user_id in target_ids:
-        push_notification_task.delay(
-            user_id=user_id,
-            title='SmartLocker Event',
-            body=message,
-        )
+    push_notification_task(
+        user_ids=target_ids,
+        title='SmartLocker Event',
+        body=message,
+    )

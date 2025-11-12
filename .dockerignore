@@ -9,3 +9,5 @@ __pycache__/
 .git
 media/
 *.log
+.env.docker
+.env.docker

@@ -2,6 +2,7 @@ import random
 import string
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.db import models, transaction as db_transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -26,41 +27,103 @@ from .services import PaymentGatewayService
 from apps.lockers.models import Locker
 from apps.lockers.services import BlynkAPIService
 from apps.notifications.tasks import push_notification_task
+from apps.users.permissions import IsOwner, IsBuyer
+
+User = get_user_model()
+
+TRANSACTION_STATUS_ALIASES = {
+    'PENDING_VERIFICATION': Transaction.TransactionStatus.NEED_VERIFICATION,
+    'NEED_VERIFICATION': Transaction.TransactionStatus.NEED_VERIFICATION,
+    'ESCROW': Transaction.TransactionStatus.ESCROW,
+    'COMPLETED': Transaction.TransactionStatus.COMPLETED,
+    'PENDING': Transaction.TransactionStatus.PENDING,
+    'AWAITING_PICKUP': Transaction.TransactionStatus.AWAITING_PICKUP,
+    'RELEASED': Transaction.TransactionStatus.RELEASED,
+}
+
+
+def _filter_transactions_by_status(queryset, request):
+    status_param = request.query_params.get('status')
+    if not status_param:
+        return queryset
+
+    normalized_statuses = []
+    for raw_value in status_param.split(','):
+        candidate = raw_value.strip().upper()
+        if not candidate:
+            continue
+        mapped = TRANSACTION_STATUS_ALIASES.get(candidate, candidate)
+        if mapped in Transaction.TransactionStatus.values:
+            normalized_statuses.append(mapped)
+
+    if not normalized_statuses:
+        return queryset
+    return queryset.filter(status__in=normalized_statuses)
 
 class MyStoreView(generics.RetrieveUpdateAPIView):
     serializer_class = StoreSerializer
-    permission_classes = [permissions.IsAuthenticated, IsStoreOwner]
+    permission_classes = [permissions.IsAuthenticated, IsOwner, IsStoreOwner]
     
     def get_object(self):
         store, created = Store.objects.get_or_create(owner=self.request.user, defaults={'name': f"{self.request.user.username}'s Store"})
         self.check_object_permissions(self.request, store)
         return store
 
+
+class StoreListView(generics.ListAPIView):
+    serializer_class = StoreSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = Store.objects.select_related('owner')
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                models.Q(name__icontains=search) |
+                models.Q(location__icontains=search) |
+                models.Q(owner__username__icontains=search)
+            )
+        return queryset
+
+
+class StoreDetailView(generics.RetrieveAPIView):
+    serializer_class = StoreSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = Store.objects.select_related('owner')
+
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
+    queryset = Product.objects.select_related('store', 'store__owner')
     serializer_class = ProductSerializer
-    permission_classes = [permissions.IsAuthenticated, IsStoreOwner]
+    permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
+
+    def get_permissions(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsOwner(), IsStoreOwner()]
 
     def get_queryset(self):
         user = self.request.user
         if not user.is_authenticated:
             return Product.objects.none()
 
-        if getattr(user, 'role', None) == User.Role.BUYER:
-            return Product.objects.all()
+        queryset = Product.objects.select_related('store', 'store__owner')
+        store_id = self.request.query_params.get('store_id')
+        if store_id:
+            queryset = queryset.filter(store_id=store_id)
 
-        if getattr(user, 'role', None) in {User.Role.OWNER, User.Role.SELLER}:
-            return Product.objects.filter(store__owner=user)
+        action = getattr(self, 'action', None)
+        if action in {'create', 'update', 'partial_update', 'destroy'}:
+            return queryset.filter(store__owner=user)
 
-        return Product.objects.all()
+        return queryset.filter(is_active=True)
 
     def perform_create(self, serializer):
         store, _ = Store.objects.get_or_create(
             owner=self.request.user,
             defaults={'name': f"{self.request.user.username}'s Store"}
         )
-        serializer.save(store=store)
+        serializer.save(store=store, seller=self.request.user)
 
     def update(self, request, *args, **kwargs):
         return self._update(request, *args, **kwargs, partial=False)
@@ -91,6 +154,30 @@ class ProductViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 
+class MyProductViewSet(ProductViewSet):
+    """
+    Dedicated endpoints for sellers to manage their own products without the
+    public queryset restrictions applied in ProductViewSet.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, IsOwner, IsStoreOwner]
+
+    def get_permissions(self):
+        return [permissions.IsAuthenticated(), IsOwner(), IsStoreOwner()]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return Product.objects.none()
+
+        queryset = Product.objects.select_related('store', 'store__owner')
+        store_id = self.request.query_params.get('store_id')
+        if store_id:
+            queryset = queryset.filter(store_id=store_id)
+
+        return queryset.filter(store__owner=user)
+
+
 class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -99,18 +186,27 @@ class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         queryset = Transaction.objects.select_related(
             'buyer', 'seller', 'product', 'product__store'
-        )
+        ).order_by('-created_at')
 
-        if getattr(user, 'role', None) == User.Role.BUYER:
-            return queryset.filter(buyer=user).order_by('-created_at')
-        if getattr(user, 'role', None) in {User.Role.OWNER, User.Role.SELLER}:
-            return queryset.filter(seller=user).order_by('-created_at')
-        return queryset.none()
+        role_param = (self.request.query_params.get('role') or '').lower()
+        if role_param == 'seller':
+            queryset = queryset.filter(seller=user)
+        elif role_param == 'buyer':
+            queryset = queryset.filter(buyer=user)
+        else:
+            if getattr(user, 'role', None) == User.ROLE_BUYER:
+                queryset = queryset.filter(buyer=user)
+            elif getattr(user, 'role', None) == User.ROLE_OWNER:
+                queryset = queryset.filter(seller=user)
+            else:
+                queryset = queryset.filter(models.Q(seller=user) | models.Q(buyer=user))
+
+        return _filter_transactions_by_status(queryset, self.request)
 
 
 class CreateTransactionView(generics.CreateAPIView):
     serializer_class = TransactionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsBuyer]
 
     def create(self, request, *args, **kwargs):
         product = get_object_or_404(Product, id=request.data.get('product_id'))
@@ -124,10 +220,16 @@ class CreateTransactionView(generics.CreateAPIView):
         buyer_phone_number = request.data.get('buyer_phone_number', '')
 
         with db_transaction.atomic():
+            seller = product.seller or product.store.owner
+            if product.seller_id is None:
+                product.seller = seller
+                product.save(update_fields=['seller'])
             product.stock -= quantity
             product.save()
             transaction = Transaction.objects.create(
-                buyer=request.user, seller=product.store.owner, product=product,
+                buyer=request.user,
+                seller=seller,
+                product=product,
                 quantity=quantity, total_price=product.price * quantity,
                 buyer_full_name=buyer_full_name, shipping_address=shipping_address,
                 buyer_phone_number=buyer_phone_number
@@ -158,20 +260,27 @@ class PaymentWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
     def post(self, request, *args, **kwargs):
         transaction = get_object_or_404(Transaction, id=request.data.get('transaction_id'))
-        if request.data.get('payment_status') == 'success' and transaction.status == Transaction.TransactionStatus.PENDING:
-            transaction.status = Transaction.TransactionStatus.ESCROW
-            transaction.save()
-            push_notification_task.delay(
-                user_id=transaction.seller.id,
-                title="Payment Confirmed",
-                body=f"Pembayaran untuk '{transaction.product.name}' berhasil."
-            )
+        if request.data.get('payment_status') != 'success':
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        if transaction.status == Transaction.TransactionStatus.NEED_VERIFICATION:
             return Response(status=status.HTTP_200_OK)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        if transaction.status != Transaction.TransactionStatus.PENDING:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+        transaction.status = Transaction.TransactionStatus.NEED_VERIFICATION
+        transaction.save(update_fields=['status', 'updated_at'])
+        push_notification_task(
+            user_ids=[transaction.seller_id],
+            title="Menunggu Verifikasi Pembayaran",
+            body=f"Pembayaran untuk '{transaction.product.name}' menunggu verifikasi Anda."
+        )
+        return Response(status=status.HTTP_200_OK)
 
 @extend_schema(exclude=True)
 class SellerDepositItemView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
     def post(self, request, *args, **kwargs):
         transaction = get_object_or_404(Transaction, id=request.data.get('transaction_id'))
         if request.user != transaction.seller or transaction.status != Transaction.TransactionStatus.ESCROW:
@@ -199,8 +308,8 @@ class ConfirmMarketplaceDepositWebhookView(APIView):
             transaction.status = Transaction.TransactionStatus.AWAITING_PICKUP
             transaction.save()
             otp = "654321"
-            push_notification_task.delay(
-                user_id=transaction.buyer.id,
+            push_notification_task(
+                user_ids=[transaction.buyer_id],
                 title="Locker Ready",
                 body=f"Barang '{transaction.product.name}' siap diambil. Kode OTP: {otp}"
             )
@@ -240,8 +349,8 @@ class ConfirmMarketplaceRetrievalWebhookView(APIView):
                 if locker:
                     locker.status = Locker.LockerStatus.AVAILABLE
                     locker.save()
-                push_notification_task.delay(
-                    user_id=transaction.seller.id,
+                push_notification_task(
+                    user_ids=[transaction.seller_id],
                     title="Escrow Released",
                     body=f"Dana untuk '{transaction.product.name}' telah dilepaskan."
                 )
@@ -269,15 +378,19 @@ class TransactionListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        qs = Transaction.objects.select_related('buyer', 'seller', 'product')
+        qs = Transaction.objects.select_related('buyer', 'seller', 'product').order_by('-created_at')
         if user.is_staff:
-            return qs
+            return _filter_transactions_by_status(qs, self.request)
         role = self.request.query_params.get('role')
         if role == 'seller':
-            return qs.filter(seller=user)
+            if user.role != User.ROLE_OWNER:
+                raise PermissionDenied("Only owners can access seller transactions.")
+            qs = qs.filter(seller=user)
         if role == 'buyer':
-            return qs.filter(buyer=user)
-        return qs.filter(models.Q(seller=user) | models.Q(buyer=user))
+            qs = qs.filter(buyer=user)
+        if role not in {'seller', 'buyer'}:
+            qs = qs.filter(models.Q(seller=user) | models.Q(buyer=user))
+        return _filter_transactions_by_status(qs, self.request)
 
 
 class TransactionDetailView(generics.RetrieveAPIView):
@@ -292,16 +405,22 @@ class TransactionDetailView(generics.RetrieveAPIView):
 
 
 class TransactionApproveView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     @extend_schema(request=None, responses=TransactionSerializer)
     def post(self, request, pk):
         transaction = get_object_or_404(Transaction, pk=pk)
         _ensure_seller(request.user, transaction)
+        if transaction.status != Transaction.TransactionStatus.NEED_VERIFICATION:
+            return Response(
+                {'error': 'Transaction is not waiting for verification.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         transaction.status = Transaction.TransactionStatus.ESCROW
-        transaction.save(update_fields=['status', 'updated_at'])
-        push_notification_task.delay(
-            user_id=transaction.buyer.id,
+        transaction.paid_at = timezone.now()
+        transaction.save(update_fields=['status', 'paid_at', 'updated_at'])
+        push_notification_task(
+            user_ids=[transaction.buyer_id],
             title="Order Approved",
             body=f"Pesanan '{transaction.product.name}' telah disetujui seller."
         )
@@ -310,16 +429,21 @@ class TransactionApproveView(APIView):
 
 
 class TransactionRejectView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     @extend_schema(request=None, responses=TransactionSerializer)
     def post(self, request, pk):
         transaction = get_object_or_404(Transaction, pk=pk)
         _ensure_seller(request.user, transaction)
-        transaction.status = Transaction.TransactionStatus.REJECTED
+        if transaction.status != Transaction.TransactionStatus.NEED_VERIFICATION:
+            return Response(
+                {'error': 'Transaction is not waiting for verification.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        transaction.status = Transaction.TransactionStatus.COMPLETED
         transaction.save(update_fields=['status', 'updated_at'])
-        push_notification_task.delay(
-            user_id=transaction.buyer.id,
+        push_notification_task(
+            user_ids=[transaction.buyer_id],
             title="Order Rejected",
             body=f"Pesanan '{transaction.product.name}' ditolak seller."
         )
@@ -345,12 +469,20 @@ class TransactionPaymentProofUploadView(APIView):
         transaction.payment_proof = payment_file
         now = timezone.now()
         transaction.payment_proof_uploaded_at = now
-        transaction.paid_at = now
-        transaction.status = Transaction.TransactionStatus.PAID
-        transaction.save(update_fields=['payment_proof', 'payment_proof_uploaded_at', 'paid_at', 'status', 'updated_at'])
+        transaction.paid_at = None
+        transaction.status = Transaction.TransactionStatus.NEED_VERIFICATION
+        transaction.save(
+            update_fields=[
+                'payment_proof',
+                'payment_proof_uploaded_at',
+                'paid_at',
+                'status',
+                'updated_at',
+            ]
+        )
 
-        push_notification_task.delay(
-            user_id=transaction.seller.id,
+        push_notification_task(
+            user_ids=[transaction.seller_id],
             title="Payment Proof Uploaded",
             body=f"Bukti pembayaran untuk '{transaction.product.name}' telah diunggah."
         )
@@ -360,20 +492,20 @@ class TransactionPaymentProofUploadView(APIView):
 
 
 class TransactionGenerateOtpView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     @extend_schema(request=None, responses=TransactionSerializer)
     def post(self, request, pk):
         transaction = get_object_or_404(Transaction, pk=pk)
         _ensure_seller(request.user, transaction)
         otp = ''.join(random.choices(string.digits, k=6))
-        transaction.otp_code = otp
+        transaction.otp = otp
         transaction.status = Transaction.TransactionStatus.AWAITING_PICKUP
         transaction.payment_expires_at = timezone.now() + timedelta(hours=6)
-        transaction.save(update_fields=['otp_code', 'status', 'payment_expires_at', 'updated_at'])
+        transaction.save(update_fields=['otp', 'status', 'payment_expires_at', 'updated_at'])
 
-        push_notification_task.delay(
-            user_id=transaction.buyer.id,
+        push_notification_task(
+            user_ids=[transaction.buyer_id],
             title="Pickup OTP",
             body=f"Kode OTP pengambilan untuk '{transaction.product.name}': {otp}"
         )
@@ -383,22 +515,45 @@ class TransactionGenerateOtpView(APIView):
 
 
 class TransactionShippingUpdateView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     @extend_schema(request=TransactionShippingSerializer, responses=TransactionSerializer)
     def post(self, request, pk):
         transaction = get_object_or_404(Transaction, pk=pk)
-        _ensure_participant(request.user, transaction)
+        _ensure_seller(request.user, transaction)
         serializer = TransactionShippingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         for field, value in serializer.validated_data.items():
             setattr(transaction, field, value)
         transaction.save(update_fields=['buyer_full_name', 'shipping_address', 'buyer_phone_number', 'updated_at'])
 
-        push_notification_task.delay(
-            user_id=transaction.seller.id,
+        push_notification_task(
+            user_ids=[transaction.buyer_id],
             title="Shipping Info Updated",
             body=f"Informasi pengiriman untuk transaksi '{transaction.product.name}' telah diperbarui."
+        )
+
+        return Response(TransactionSerializer(transaction, context={'request': request}).data)
+
+
+class TransactionBuyerShippingUpdateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(request=TransactionShippingSerializer, responses=TransactionSerializer)
+    def post(self, request, pk):
+        transaction = get_object_or_404(Transaction, pk=pk)
+        if request.user != transaction.buyer and not request.user.is_staff:
+            raise PermissionDenied("Only the buyer can update this information.")
+        serializer = TransactionShippingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        for field, value in serializer.validated_data.items():
+            setattr(transaction, field, value)
+        transaction.save(update_fields=['buyer_full_name', 'shipping_address', 'buyer_phone_number', 'updated_at'])
+
+        push_notification_task(
+            user_ids=[transaction.seller_id],
+            title="Buyer Shipping Details Updated",
+            body=f"Pembeli memperbarui informasi pengiriman untuk '{transaction.product.name}'."
         )
 
         return Response(TransactionSerializer(transaction, context={'request': request}).data)

@@ -10,6 +10,9 @@ class NotificationSerializer(serializers.ModelSerializer):
 
 
 class NotificationPushSerializer(serializers.Serializer):
-    user_id = serializers.IntegerField()
+    user_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        allow_empty=False,
+    )
     title = serializers.CharField(max_length=255)
     body = serializers.CharField()

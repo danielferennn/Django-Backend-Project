@@ -11,7 +11,7 @@ from apps.notifications.tasks import push_notification_task
 from apps.users.models import User
 
 from .models import Delivery, Locker, LockerLog
-from .permissions import IsCourierUser, IsOwnerUser
+from .permissions import IsCourierUser
 from .serializers import LockerLogSerializer, OtpValidationSerializer
 from .services import BlynkAPIService
 from .tasks import send_notification_task
@@ -96,38 +96,32 @@ class ConfirmDepositWebhookView(APIView):
 
 @extend_schema(exclude=True)
 class OpenStorageLockerView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsOwnerUser]
+    permission_classes = [permissions.IsAuthenticated]
+    VALID_SLOTS = {1, 2, 3}
 
-    def post(self, request, *args, **kwargs):
-        locker_number = request.data.get('locker_number')
-        otp = request.data.get('otp')
-
-        if not otp or otp != "123456":
-            return Response({'error': 'Invalid OTP.'}, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request, locker_slot=None, *args, **kwargs):
+        requested_slot = locker_slot
+        if requested_slot is None:
+            requested_slot = request.data.get('locker_slot')
+        if requested_slot is None:
+            requested_slot = request.data.get('locker_number')
 
         try:
-            storage_locker = Locker.objects.get(number=locker_number, type=Locker.LockerType.STORAGE, status=Locker.LockerStatus.OCCUPIED)
+            slot_value = int(requested_slot)
+        except (TypeError, ValueError):
+            return Response({'error': 'locker_slot must be one of 1, 2, or 3.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            blynk_service = BlynkAPIService(token=storage_locker.blynk_device_token)
-            success, message = blynk_service.set_virtual_pin(pin=storage_locker.blynk_vpin_control, value=1)
+        if slot_value not in self.VALID_SLOTS:
+            return Response({'error': 'locker_slot must be one of 1, 2, or 3.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            if not success:
-                return Response({'error': 'Failed to communicate with the locker.', 'details': message}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-            
-            storage_locker.status = Locker.LockerStatus.AVAILABLE
-            storage_locker.last_opened_by = request.user
-            storage_locker.save()
-            
-            LockerLog.objects.create(
-                locker=storage_locker,
-                user=request.user,
-                action=LockerLog.Action.RETRIEVE,
-                details=f"Owner retrieved item from storage locker."
-            )
-
-            return Response({'message': 'Locker is open. Please retrieve your item.'}, status=status.HTTP_200_OK)
-        except Locker.DoesNotExist:
-            return Response({'error': 'Locker not found or is not occupied.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(
+            {
+                'locker_slot': slot_value,
+                'status': 'ok',
+                'message': 'Locker command accepted.',
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 class LockerLogListView(generics.ListAPIView):
@@ -140,7 +134,7 @@ class LockerLogListView(generics.ListAPIView):
         if getattr(user, 'is_staff', False):
             return queryset
         role = getattr(user, 'role', None)
-        if role == User.Role.OWNER:
+        if role == User.ROLE_OWNER:
             return queryset.filter(locker__last_opened_by=user)
         return queryset.filter(user=user)
 
@@ -164,7 +158,7 @@ class ValidateOtpView(APIView):
         serializer.is_valid(raise_exception=True)
         otp_code = serializer.validated_data['otp']
 
-        transaction = Transaction.objects.filter(otp_code=otp_code).order_by('-updated_at').first()
+        transaction = Transaction.objects.filter(otp=otp_code).order_by('-updated_at').first()
         if not transaction:
             return Response({'status': 'invalid'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -178,15 +172,15 @@ class ValidateOtpView(APIView):
             payload={'event': 'otp_validated', 'transaction_id': transaction.id},
         )
 
-        push_notification_task.delay(
-            user_id=transaction.seller.id,
+        push_notification_task(
+            user_ids=[transaction.seller_id],
             title='OTP Validated',
             body=f'OTP {otp_code} telah divalidasi. Locker siap dibuka.'
         )
 
         if transaction.buyer_id:
-            push_notification_task.delay(
-                user_id=transaction.buyer.id,
+            push_notification_task(
+                user_ids=[transaction.buyer_id],
                 title='OTP Digunakan',
                 body='Kode OTP Anda digunakan untuk membuka locker.'
             )

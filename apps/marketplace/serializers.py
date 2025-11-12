@@ -8,15 +8,31 @@ class StoreSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Store
-        fields = ['id', 'owner', 'name', 'description']
+        fields = ['id', 'owner', 'name', 'description', 'location']
 
 class ProductSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
+    store_info = StoreSerializer(source='store', read_only=True)
+    seller = UserDetailSerializer(read_only=True)
 
     class Meta:
         model = Product
-        fields = ['id', 'store', 'name', 'price', 'stock', 'description', 'image', 'image_url', 'created_at', 'updated_at']
-        read_only_fields = ['store', 'created_at', 'updated_at']
+        fields = [
+            'id',
+            'store',
+            'seller',
+            'store_info',
+            'name',
+            'price',
+            'stock',
+            'description',
+            'image',
+            'image_url',
+            'is_active',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['store', 'seller', 'created_at', 'updated_at', 'store_info']
 
     def get_image_url(self, obj):
         if obj.image and hasattr(obj.image, 'url'):
@@ -42,6 +58,8 @@ class TransactionSerializer(serializers.ModelSerializer):
     seller_name = serializers.SerializerMethodField()
     product_name = serializers.CharField(source='product.name', read_only=True)
     payment_proof_url = serializers.SerializerMethodField()
+
+    otp_code = serializers.CharField(source='otp', read_only=True)
 
     class Meta:
         model = Transaction

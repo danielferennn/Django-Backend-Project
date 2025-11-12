@@ -48,3 +48,33 @@ class Delivery(models.Model):
     status = models.CharField(max_length=20, choices=DeliveryStatus.choices, default=DeliveryStatus.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class Package(models.Model):
+    class PackageStatus(models.TextChoices):
+        ACTIVE = 'ACTIVE', 'Active'
+        COMPLETED = 'COMPLETED', 'Completed'
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='packages',
+    )
+    name = models.CharField(max_length=120)
+    tracking_number = models.CharField(max_length=120)
+    courier = models.CharField(max_length=60, blank=True)
+    order_date = models.DateField(null=True, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=PackageStatus.choices,
+        default=PackageStatus.ACTIVE,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('owner', 'tracking_number')
+
+    def __str__(self):
+        return f"{self.name} ({self.tracking_number})"

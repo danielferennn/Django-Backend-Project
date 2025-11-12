@@ -31,17 +31,3 @@ class IoTIngestSerializer(serializers.Serializer):
             payload=validated_data['payload'],
         )
 
-
-class FaceMatchSerializer(serializers.Serializer):
-    face_id = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    confidence = serializers.FloatField()
-    timestamp = serializers.DateTimeField()
-    image_url = serializers.URLField(required=False, allow_blank=True)
-    user_id = serializers.IntegerField(required=False)
-    metadata = serializers.JSONField(required=False)
-
-
-class FaceMatchResponseSerializer(serializers.Serializer):
-    status = serializers.CharField()
-    event_id = serializers.IntegerField()
-    user_id = serializers.IntegerField(allow_null=True, required=False)
