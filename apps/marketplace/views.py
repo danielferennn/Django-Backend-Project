@@ -182,6 +182,12 @@ class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        role = (self.request.query_params.get('role') or '').lower()
+        if role == 'seller':
+            return [permissions.IsAuthenticated(), IsOwner()]
+        return [permission() for permission in self.permission_classes]
+
     def get_queryset(self):
         user = self.request.user
         queryset = Transaction.objects.select_related(
@@ -191,6 +197,9 @@ class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
         role_param = (self.request.query_params.get('role') or '').lower()
         if role_param == 'seller':
             queryset = queryset.filter(seller=user)
+            store_id = self.request.query_params.get('store_id')
+            if store_id:
+                queryset = queryset.filter(product__store_id=store_id)
         elif role_param == 'buyer':
             queryset = queryset.filter(buyer=user)
         else:
@@ -376,6 +385,12 @@ class TransactionListView(generics.ListAPIView):
     serializer_class = TransactionSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_permissions(self):
+        role = (self.request.query_params.get('role') or '').lower()
+        if role == 'seller':
+            return [permissions.IsAuthenticated(), IsOwner()]
+        return [permission() for permission in self.permission_classes]
+
     def get_queryset(self):
         user = self.request.user
         qs = Transaction.objects.select_related('buyer', 'seller', 'product').order_by('-created_at')
@@ -386,6 +401,9 @@ class TransactionListView(generics.ListAPIView):
             if user.role != User.ROLE_OWNER:
                 raise PermissionDenied("Only owners can access seller transactions.")
             qs = qs.filter(seller=user)
+            store_id = self.request.query_params.get('store_id')
+            if store_id:
+                qs = qs.filter(product__store_id=store_id)
         if role == 'buyer':
             qs = qs.filter(buyer=user)
         if role not in {'seller', 'buyer'}:
