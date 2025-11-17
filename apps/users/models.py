@@ -1,4 +1,8 @@
+import secrets
+import string
+
 from django.contrib.auth.models import AbstractUser
+from django.core.exceptions import ValidationError
 from django.db import models
 
 # def generate ini nambahin dari punya beliau, terus buat class user diubah menurut perubahan mas fahmi, versi yang lama ku comment
@@ -65,6 +69,8 @@ class User(AbstractUser):
                 })
 
     def save(self, *args, **kwargs):
+        if self.role:
+            self.role = self.role.upper()
         # Generate face_id hanya untuk OWNER
         if self.role == self.Role.OWNER and not self.face_id:
             self.face_id = generate_uid2()

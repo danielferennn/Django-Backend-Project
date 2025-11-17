@@ -2,7 +2,8 @@ from django.db import models
 import os
 import uuid
 from django.core.exceptions import ValidationError
-from users.models import User
+
+from apps.users.models import User
 # Create your models here.
 
 def upload_image_training2(instance,filename):

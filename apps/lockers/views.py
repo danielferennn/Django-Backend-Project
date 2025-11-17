@@ -134,7 +134,7 @@ class LockerLogListView(generics.ListAPIView):
         if getattr(user, 'is_staff', False):
             return queryset
         role = getattr(user, 'role', None)
-        if role == User.ROLE_OWNER:
+        if role == User.Role.OWNER:
             return queryset.filter(locker__last_opened_by=user)
         return queryset.filter(user=user)
 

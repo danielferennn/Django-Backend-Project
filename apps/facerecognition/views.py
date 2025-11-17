@@ -1,14 +1,38 @@
+import os
+from datetime import datetime
+
 from django.shortcuts import render
-import os,numpy as np,cv2
 from PIL import Image
 from django.core.files.base import ContentFile
-from . import models,serializer
-from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser,FormParser,JSONParser
-from rest_framework.views import APIView
-from datetime import datetime
-from users.models import User
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from apps.users.models import User
+
+from . import models, serializer
+
+try:
+    import numpy as np
+    import cv2
+except ModuleNotFoundError:
+    np = None
+    cv2 = None
+
+
+def _dependencies_available():
+    return np is not None and cv2 is not None
+
+
+def _dependency_missing_response():
+    return Response(
+        data={
+            'status': 'error',
+            'message': 'Face recognition dependencies (numpy, opencv-python) are not installed on the server.',
+        },
+        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
 # Create your views here.
 def get_trained_images(log_file, user_folder):
     """Membaca daftar gambar yang sudah dilatih dari file log."""
@@ -240,6 +264,8 @@ def get_true_label_from_path(image_path):
 class Createimagetrainingusernew(APIView):
     parser_classes = [MultiPartParser,FormParser]
     def post(self,request):
+        if not _dependencies_available():
+            return _dependency_missing_response()
         username=request.data.get("username",None)
         images=request.FILES.getlist("image_list")
         if not username:
@@ -317,6 +343,8 @@ class Getimageexistsuser(APIView):
 class Createlogusersmartnew(APIView):
     parser_classes = [MultiPartParser,FormParser]
     def post(self,request):
+        if not _dependencies_available():
+            return _dependency_missing_response()
         image_file=request.FILES.get('image')
         print(image_file)
         if not image_file:

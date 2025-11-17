@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'apps.iot',
     'apps.notifications',
     'apps.package_center',
+    'apps.facerecognition',
 ]
 
 MIDDLEWARE = [

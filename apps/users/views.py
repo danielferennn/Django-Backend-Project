@@ -7,32 +7,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import get_user_model
 from django.shortcuts import render
 
+from . import models as models
+from . import serializers as serializer
 from .models import User
 from .serializers import (
-    BuyerRegistrationSerializer,
-    OwnerRegistrationSerializer,
     UserDetailSerializer,
     UserRegistrationSerializer,
 )
-
-
-# class BaseRegistrationView(APIView):
-#     permission_classes = (permissions.AllowAny,)
-#     serializer_class = None
-
-#     def post(self, request, *args, **kwargs):
-#         serializer = self.serializer_class(data=request.data)
-#         serializer.is_valid(raise_exception=True)
-#         serializer.save()
-#         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-
-# class BuyerRegistrationView(BaseRegistrationView):
-#     serializer_class = BuyerRegistrationSerializer
-
-
-# class OwnerRegistrationView(BaseRegistrationView):
-#     serializer_class = OwnerRegistrationSerializer
 
 
 class UserRegistrationView(generics.CreateAPIView):
@@ -81,22 +62,14 @@ class Usergetrole(APIView):
         return Response(userdetail.data,status=status.HTTP_200_OK)
 
 
-# buat class2 dibawah ini ku comment, yang punya mas fahmi kutaruh atasnya
-# class UserRegistrationView(BuyerRegistrationView):
-#     """
-#     Backwards-compatible endpoint that defaults to registering buyers.
-#     """
-#     serializer_class = UserRegistrationSerializer
+class UserLoginView(TokenObtainPairView):
+    permission_classes = (permissions.AllowAny,)
 
 
-# class UserLoginView(TokenObtainPairView):
-#     permission_classes = (permissions.AllowAny,)
+class UserProfileView(generics.RetrieveAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserDetailSerializer
+    permission_classes = (permissions.IsAuthenticated,)
 
-
-# class UserProfileView(generics.RetrieveAPIView):
-#     queryset = User.objects.all()
-#     serializer_class = UserDetailSerializer
-#     permission_classes = (permissions.IsAuthenticated,)
-
-#     def get_object(self):
-#         return self.request.user
+    def get_object(self):
+        return self.request.user

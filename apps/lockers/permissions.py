@@ -8,7 +8,7 @@ class IsCourierUser(BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
-            and request.user.role == User.ROLE_COURIER
+            and request.user.role == User.Role.COURIER
         )
 
 
@@ -17,5 +17,5 @@ class IsOwnerUser(BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
-            and request.user.role == User.ROLE_OWNER
+            and request.user.role == User.Role.OWNER
         )

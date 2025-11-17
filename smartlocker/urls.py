@@ -22,10 +22,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # buat user ini perubahan dari punya mas fahki, terus ada tambahan urls face juga
-    path('users/',include('users.urls')),
-    path('face/',include('facerecognition.urls')), 
-    # path('api/v1/users/', include('apps.users.urls')),
+    path('api/v1/users/', include('apps.users.urls')),
+    path('api/v1/facerecognition/', include('apps.facerecognition.urls')),
     path('api/v1/lockers/', include('apps.lockers.urls')),
     path('api/v1/packages/', include('apps.lockers.package_urls')),
     path('api/v1/marketplace/', include('apps.marketplace.urls')),

@@ -8,7 +8,7 @@ class IsOwner(permissions.BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
-            and request.user.role == User.ROLE_OWNER
+            and request.user.role == User.Role.OWNER
         )
 
 
@@ -17,5 +17,5 @@ class IsBuyer(permissions.BasePermission):
         return bool(
             request.user
             and request.user.is_authenticated
-            and request.user.role == User.ROLE_BUYER
+            and request.user.role == User.Role.BUYER
         )

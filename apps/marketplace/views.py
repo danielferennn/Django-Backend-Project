@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, MultiPartParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -95,7 +95,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('store', 'store__owner')
     serializer_class = ProductSerializer
     permission_classes = [permissions.IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_permissions(self):
         if self.request.method in permissions.SAFE_METHODS:
@@ -103,27 +103,51 @@ class ProductViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated(), IsOwner(), IsStoreOwner()]
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return Product.objects.none()
-
         queryset = Product.objects.select_related('store', 'store__owner')
         store_id = self.request.query_params.get('store_id')
         if store_id:
             queryset = queryset.filter(store_id=store_id)
 
+        user = self.request.user
+        role_param = (self.request.query_params.get('role') or '').lower()
         action = getattr(self, 'action', None)
-        if action in {'create', 'update', 'partial_update', 'destroy'}:
-            return queryset.filter(store__owner=user)
+        resolver_route = getattr(getattr(self.request, 'resolver_match', None), 'route', '') or ''
+        is_my_products_route = 'my-products' in resolver_route
+        is_seller_scope = user.is_authenticated and (role_param == 'seller' or is_my_products_route)
 
-        return queryset.filter(is_active=True)
+        if action in {'update', 'partial_update', 'destroy'}:
+            return queryset
+
+        if action == 'list':
+            if is_seller_scope:
+                return queryset.filter(seller=user)
+            if hasattr(Product, 'is_active'):
+                return queryset.filter(is_active=True)
+            return queryset
+
+        if is_my_products_route and user.is_authenticated:
+            return queryset.filter(seller=user)
+
+        if role_param == 'seller' and user.is_authenticated:
+            return queryset.filter(seller=user)
+
+        if hasattr(Product, 'is_active'):
+            return queryset.filter(is_active=True)
+        return queryset
 
     def perform_create(self, serializer):
         store, _ = Store.objects.get_or_create(
             owner=self.request.user,
             defaults={'name': f"{self.request.user.username}'s Store"}
         )
-        serializer.save(store=store, seller=self.request.user)
+        save_kwargs = {'store': store, 'seller': self.request.user}
+        if hasattr(Product, 'is_active'):
+            save_kwargs['is_active'] = True
+        serializer.save(**save_kwargs)
+
+    def _ensure_owner(self, instance):
+        if instance.seller != self.request.user:
+            raise PermissionDenied("You do not have permission to modify this product.")
 
     def update(self, request, *args, **kwargs):
         return self._update(request, *args, **kwargs, partial=False)
@@ -142,6 +166,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         elif request.FILES.get('image') and instance.image:
             delete_previous = True
 
+        self._ensure_owner(instance)
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
         if delete_previous:
@@ -152,6 +177,17 @@ class ProductViewSet(viewsets.ModelViewSet):
             instance._prefetched_objects_cache = {}
 
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self._ensure_owner(instance)
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except models.ProtectedError:
+            return Response(
+                {"detail": "Product has existing transactions and cannot be deleted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class MyProductViewSet(ProductViewSet):
@@ -166,16 +202,8 @@ class MyProductViewSet(ProductViewSet):
         return [permissions.IsAuthenticated(), IsOwner(), IsStoreOwner()]
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
-            return Product.objects.none()
-
-        queryset = Product.objects.select_related('store', 'store__owner')
-        store_id = self.request.query_params.get('store_id')
-        if store_id:
-            queryset = queryset.filter(store_id=store_id)
-
-        return queryset.filter(store__owner=user)
+        queryset = super().get_queryset()
+        return queryset.filter(seller=self.request.user)
 
 
 class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -203,9 +231,9 @@ class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
         elif role_param == 'buyer':
             queryset = queryset.filter(buyer=user)
         else:
-            if getattr(user, 'role', None) == User.ROLE_BUYER:
+            if getattr(user, 'role', None) == User.Role.BUYER:
                 queryset = queryset.filter(buyer=user)
-            elif getattr(user, 'role', None) == User.ROLE_OWNER:
+            elif getattr(user, 'role', None) == User.Role.OWNER:
                 queryset = queryset.filter(seller=user)
             else:
                 queryset = queryset.filter(models.Q(seller=user) | models.Q(buyer=user))
@@ -398,7 +426,7 @@ class TransactionListView(generics.ListAPIView):
             return _filter_transactions_by_status(qs, self.request)
         role = self.request.query_params.get('role')
         if role == 'seller':
-            if user.role != User.ROLE_OWNER:
+            if user.role != User.Role.OWNER:
                 raise PermissionDenied("Only owners can access seller transactions.")
             qs = qs.filter(seller=user)
             store_id = self.request.query_params.get('store_id')

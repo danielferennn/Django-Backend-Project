@@ -1,12 +1,1 @@
-[2025-11-12 15:21:36,201] ERROR django.request: Internal Server Error: /api/v1/marketplace/transactions/create/
-[2025-11-12 15:21:50,257] ERROR django.request: Internal Server Error: /api/v1/marketplace/transactions/create/
-[2025-11-12 15:22:41,249] ERROR django.request: Internal Server Error: /api/v1/marketplace/transactions/create/
-[2025-11-12 15:25:27,929] INFO apps.notifications.tasks: Notification queued for users [1]: Payment Proof Uploaded
-[2025-11-12 15:25:27,938] WARNING django.request: Forbidden: /api/v1/marketplace/transactions/1/approve/
-[2025-11-12 15:25:27,942] INFO apps.notifications.tasks: Notification queued for users [3]: Order Approved
-[2025-11-12 15:26:17,108] INFO apps.notifications.tasks: Notification queued for users [8]: Payment Proof Uploaded
-[2025-11-12 15:26:17,118] WARNING django.request: Forbidden: /api/v1/marketplace/transactions/10/approve/
-[2025-11-12 15:26:17,124] INFO apps.notifications.tasks: Notification queued for users [10]: Order Approved
-[2025-11-12 15:47:05,035] INFO apps.notifications.tasks: Notification queued for users [1]: Payment Proof Uploaded
-[2025-11-12 15:47:05,044] WARNING django.request: Forbidden: /api/v1/marketplace/transactions/1/approve/
-[2025-11-12 15:47:05,048] INFO apps.notifications.tasks: Notification queued for users [3]: Order Approved
+[2025-11-17 00:55:43,968] WARNING django.request: Forbidden: /api/v1/marketplace/products/17/
