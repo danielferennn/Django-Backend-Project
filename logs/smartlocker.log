@@ -1,1 +1,102 @@
 [2025-11-17 00:55:43,968] WARNING django.request: Forbidden: /api/v1/marketplace/products/17/
+[2025-11-17 17:57:18,993] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 18:32:29,037] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 18:37:18,262] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 18:44:12,589] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 19:01:19,530] INFO django.utils.autoreload: /home/danielferen52/smartlocker/apps/lockers/views.py changed, reloading.
+[2025-11-17 19:01:20,842] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 19:02:24,497] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 19:44:22,014] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 19:44:35,454] INFO django.server: "GET /admin/ HTTP/1.1" 302 0
+[2025-11-17 19:44:35,520] INFO django.server: "GET /admin/login/?next=/admin/ HTTP/1.1" 200 4174
+[2025-11-17 19:44:35,694] INFO django.server: "GET /static/admin/js/theme.js HTTP/1.1" 200 1653
+[2025-11-17 19:44:35,697] INFO django.server: "GET /static/admin/css/dark_mode.css HTTP/1.1" 200 2808
+[2025-11-17 19:44:35,697] INFO django.server: "GET /static/admin/css/nav_sidebar.css HTTP/1.1" 200 2810
+[2025-11-17 19:44:35,699] INFO django.server: "GET /static/admin/css/login.css HTTP/1.1" 200 951
+[2025-11-17 19:44:35,700] INFO django.server: "GET /static/admin/css/responsive.css HTTP/1.1" 200 16565
+[2025-11-17 19:44:35,700] INFO django.server: "GET /static/admin/css/base.css HTTP/1.1" 200 22120
+[2025-11-17 19:44:35,708] INFO django.server: "GET /static/admin/js/nav_sidebar.js HTTP/1.1" 200 3063
+[2025-11-17 19:44:35,817] WARNING django.request: Not Found: /favicon.ico
+[2025-11-17 19:44:35,817] WARNING django.server: "GET /favicon.ico HTTP/1.1" 404 4008
+[2025-11-17 19:45:21,933] INFO django.server: "POST /admin/login/?next=/admin/ HTTP/1.1" 200 4354
+[2025-11-17 19:46:04,370] INFO django.server: "POST /admin/login/?next=/admin/ HTTP/1.1" 200 4354
+[2025-11-17 19:48:56,847] INFO django.server: "POST /admin/login/?next=/admin/ HTTP/1.1" 302 0
+[2025-11-17 19:48:56,907] INFO django.server: "GET /admin/ HTTP/1.1" 200 11830
+[2025-11-17 19:48:56,987] INFO django.server: "GET /static/admin/css/dashboard.css HTTP/1.1" 200 441
+[2025-11-17 19:48:57,046] INFO django.server: "GET /static/admin/img/icon-addlink.svg HTTP/1.1" 200 331
+[2025-11-17 19:48:57,047] INFO django.server: "GET /static/admin/img/icon-changelink.svg HTTP/1.1" 200 380
+[2025-11-17 19:49:21,194] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 12024
+[2025-11-17 19:49:21,234] INFO django.server: "GET /static/admin/css/changelists.css HTTP/1.1" 200 6878
+[2025-11-17 19:49:21,237] INFO django.server: "GET /static/admin/js/jquery.init.js HTTP/1.1" 200 347
+[2025-11-17 19:49:21,244] INFO django.server: "GET /static/admin/js/core.js HTTP/1.1" 200 6208
+[2025-11-17 19:49:21,244] INFO django.server: "GET /static/admin/js/admin/RelatedObjectLookups.js HTTP/1.1" 200 9777
+[2025-11-17 19:49:21,246] INFO django.server: "GET /static/admin/js/actions.js HTTP/1.1" 200 8076
+[2025-11-17 19:49:21,255] INFO django.server: "GET /static/admin/js/urlify.js HTTP/1.1" 200 7887
+[2025-11-17 19:49:21,255] INFO django.server: "GET /static/admin/js/prepopulate.js HTTP/1.1" 200 1531
+[2025-11-17 19:49:21,260] INFO django.server: "GET /static/admin/js/vendor/jquery/jquery.js HTTP/1.1" 200 285314
+[2025-11-17 19:49:21,265] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:49:21,296] INFO django.server: "GET /static/admin/js/vendor/xregexp/xregexp.js HTTP/1.1" 200 325171
+[2025-11-17 19:49:21,312] INFO django.server: "GET /static/admin/js/filters.js HTTP/1.1" 200 978
+[2025-11-17 19:49:21,360] INFO django.server: "GET /static/admin/img/tooltag-add.svg HTTP/1.1" 200 331
+[2025-11-17 19:49:25,434] INFO django.server: "GET /admin/ HTTP/1.1" 200 11830
+[2025-11-17 19:49:40,662] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 12024
+[2025-11-17 19:49:40,713] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:49:59,107] INFO django.server: "GET /admin/lockers/locker/add/ HTTP/1.1" 200 18022
+[2025-11-17 19:49:59,138] INFO django.server: "GET /static/admin/js/prepopulate_init.js HTTP/1.1" 200 586
+[2025-11-17 19:49:59,138] INFO django.server: "GET /static/admin/css/forms.css HTTP/1.1" 200 8525
+[2025-11-17 19:49:59,155] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:49:59,161] INFO django.server: "GET /static/admin/js/change_form.js HTTP/1.1" 200 606
+[2025-11-17 19:49:59,193] INFO django.server: "GET /static/admin/css/widgets.css HTTP/1.1" 200 11991
+[2025-11-17 19:50:13,144] INFO django.server: "POST /admin/lockers/locker/add/ HTTP/1.1" 200 18751
+[2025-11-17 19:50:13,182] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:51:45,151] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 12024
+[2025-11-17 19:51:45,194] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:51:47,201] INFO django.server: "GET /admin/lockers/lockerlog/ HTTP/1.1" 200 12050
+[2025-11-17 19:51:47,247] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:51:49,016] INFO django.server: "GET /admin/lockers/delivery/ HTTP/1.1" 200 12038
+[2025-11-17 19:51:49,060] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:51:50,388] INFO django.server: "GET /admin/lockers/package/ HTTP/1.1" 200 12031
+[2025-11-17 19:51:50,437] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:51:51,987] INFO django.server: "GET /admin/iot/iotevent/ HTTP/1.1" 200 13848
+[2025-11-17 19:51:52,029] INFO django.server: "GET /static/admin/img/search.svg HTTP/1.1" 200 458
+[2025-11-17 19:51:52,035] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:51:52,112] INFO django.server: "GET /static/admin/img/icon-viewlink.svg HTTP/1.1" 200 581
+[2025-11-17 19:51:55,971] INFO django.server: "GET /admin/package_center/packageentry/ HTTP/1.1" 200 13371
+[2025-11-17 19:51:56,024] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:51:57,722] INFO django.server: "GET /admin/auth/group/ HTTP/1.1" 200 12358
+[2025-11-17 19:51:57,770] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:52:14,538] INFO django.utils.autoreload: /home/danielferen52/smartlocker/apps/lockers/models.py changed, reloading.
+[2025-11-17 19:52:15,403] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 19:56:00,870] INFO django.utils.autoreload: /home/danielferen52/smartlocker/apps/lockers/views.py changed, reloading.
+[2025-11-17 19:56:01,652] INFO django.utils.autoreload: Watching for file changes with StatReloader
+[2025-11-17 19:56:42,648] INFO django.server: "GET /admin/auth/group/ HTTP/1.1" 200 12358
+[2025-11-17 19:56:42,684] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:56:45,196] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 12024
+[2025-11-17 19:56:45,242] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 19:56:47,956] INFO django.server: "GET /admin/lockers/locker/add/ HTTP/1.1" 200 15985
+[2025-11-17 19:56:48,010] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:02:20,909] INFO django.server: "POST /admin/lockers/locker/add/ HTTP/1.1" 302 0
+[2025-11-17 20:02:20,966] INFO django.server: "GET /admin/lockers/locker/add/ HTTP/1.1" 200 16229
+[2025-11-17 20:02:21,065] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:02:21,141] INFO django.server: "GET /static/admin/img/icon-yes.svg HTTP/1.1" 200 436
+[2025-11-17 20:02:31,958] INFO django.server: "POST /admin/lockers/locker/add/ HTTP/1.1" 302 0
+[2025-11-17 20:02:32,012] INFO django.server: "GET /admin/lockers/locker/add/ HTTP/1.1" 200 16229
+[2025-11-17 20:02:32,110] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:02:47,103] INFO django.server: "POST /admin/lockers/locker/add/ HTTP/1.1" 302 0
+[2025-11-17 20:02:47,165] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 14101
+[2025-11-17 20:02:47,272] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:02:49,062] INFO django.server: "GET /admin/lockers/locker/3/change/ HTTP/1.1" 200 16246
+[2025-11-17 20:02:49,116] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:02:52,318] INFO django.server: "POST /admin/lockers/locker/3/change/ HTTP/1.1" 302 0
+[2025-11-17 20:02:52,368] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 14103
+[2025-11-17 20:02:52,483] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:02:53,734] INFO django.server: "GET /admin/lockers/locker/2/change/ HTTP/1.1" 200 16246
+[2025-11-17 20:02:53,794] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:02:58,447] INFO django.server: "POST /admin/lockers/locker/2/change/ HTTP/1.1" 302 0
+[2025-11-17 20:02:58,501] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 14103
+[2025-11-17 20:02:58,624] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:02:59,888] INFO django.server: "GET /admin/lockers/locker/1/change/ HTTP/1.1" 200 16245
+[2025-11-17 20:02:59,948] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 20:03:03,151] INFO django.server: "POST /admin/lockers/locker/1/change/ HTTP/1.1" 302 0
+[2025-11-17 20:03:03,202] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 14103
+[2025-11-17 20:03:03,320] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342

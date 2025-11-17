@@ -16,9 +16,7 @@ class Locker(models.Model):
     type = models.CharField(max_length=20, choices=LockerType.choices)
     status = models.CharField(max_length=20, choices=LockerStatus.choices, default=LockerStatus.AVAILABLE)
     last_opened_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
-    blynk_device_token = models.CharField(max_length=255)
-    blynk_vpin_control = models.IntegerField()
-    blynk_vpin_sensor = models.IntegerField()
+    gpio_pin = models.IntegerField(null=True, blank=True, help_text="Nomor pin GPIO BCM yang terhubung ke aktuator loker ini")
 
 class LockerLog(models.Model):
     class Action(models.TextChoices):

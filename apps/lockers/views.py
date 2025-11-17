@@ -16,6 +16,15 @@ from .serializers import LockerLogSerializer, OtpValidationSerializer
 from .services import BlynkAPIService
 from .tasks import send_notification_task
 
+# Import gpiozero jika tersedia
+try:
+    from gpiozero import OutputDevice
+    GPIO_AVAILABLE = True
+except ImportError:
+    GPIO_AVAILABLE = False
+    print("WARNING: gpiozero library not found. GPIO control will be simulated.")
+
+
 @extend_schema(exclude=True)
 class VerifyDeliveryView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsCourierUser]
@@ -32,11 +41,17 @@ class VerifyDeliveryView(APIView):
             if inbound_locker.status != Locker.LockerStatus.AVAILABLE:
                 return Response({'error': 'Inbound locker is currently occupied.'}, status=status.HTTP_409_CONFLICT)
 
-            blynk_service = BlynkAPIService(token=inbound_locker.blynk_device_token)
-            success, message = blynk_service.set_virtual_pin(pin=inbound_locker.blynk_vpin_control, value=1)
-
-            if not success:
-                return Response({'error': 'Failed to communicate with the locker.', 'details': message}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            # --- LOGIKA BARU: Gunakan GPIO langsung ---
+            gpio_pin = inbound_locker.gpio_pin
+            if gpio_pin is None:
+                raise ValueError(f"GPIO pin for inbound locker {inbound_locker.number} is not configured.")
+            
+            # Panggil fungsi untuk membuka loker via GPIO
+            # Kita perlu membuat instance dari OpenStorageLockerView untuk memanggil metodenya
+            # atau memindahkan _trigger_gpio_pin menjadi fungsi helper biasa.
+            # Untuk sementara, kita panggil langsung di sini.
+            OpenStorageLockerView()._trigger_gpio_pin(gpio_pin)
+            # --- AKHIR LOGIKA BARU ---
             
             delivery.status = Delivery.DeliveryStatus.VERIFIED
             delivery.save()
@@ -96,8 +111,12 @@ class ConfirmDepositWebhookView(APIView):
 
 @extend_schema(exclude=True)
 class OpenStorageLockerView(APIView):
+    """
+    Endpoint untuk membuka loker penyimpanan (1, 2, atau 3) secara langsung
+    melalui pin GPIO Raspberry Pi menggunakan gpiozero.
+    """
     permission_classes = [permissions.IsAuthenticated]
-    VALID_SLOTS = {1, 2, 3}
+    VALID_SLOTS = {'1', '2', '3'} # Asumsi nomor loker di DB adalah string '1', '2', '3'
 
     def post(self, request, locker_slot=None, *args, **kwargs):
         requested_slot = locker_slot
@@ -107,21 +126,62 @@ class OpenStorageLockerView(APIView):
             requested_slot = request.data.get('locker_number')
 
         try:
-            slot_value = int(requested_slot)
+            slot_value = str(requested_slot)
         except (TypeError, ValueError):
-            return Response({'error': 'locker_slot must be one of 1, 2, or 3.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'locker_slot must be provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if slot_value not in self.VALID_SLOTS:
-            return Response({'error': 'locker_slot must be one of 1, 2, or 3.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': f'locker_slot must be one of {self.VALID_SLOTS}.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(
-            {
-                'locker_slot': slot_value,
-                'status': 'ok',
-                'message': 'Locker command accepted.',
-            },
-            status=status.HTTP_200_OK,
-        )
+        try:
+            # 1. Cari loker di database berdasarkan nomornya
+            locker_to_open = Locker.objects.get(number=slot_value, type=Locker.LockerType.STORAGE)
+            
+            # 2. Dapatkan nomor pin GPIO dari database
+            gpio_pin = locker_to_open.gpio_pin # Menggunakan field gpio_pin yang baru
+            if gpio_pin is None:
+                raise ValueError(f"GPIO pin for locker {slot_value} is not configured in the database.")
+
+            # 3. Panggil fungsi untuk membuka loker via GPIO
+            self._trigger_gpio_pin(gpio_pin)
+
+            # 4. Catat aktivitas di log
+            LockerLog.objects.create(
+                locker=locker_to_open,
+                user=request.user,
+                action=LockerLog.Action.OPEN,
+                details=f"Locker {slot_value} opened directly by user {request.user.email} via GPIO pin {gpio_pin}."
+            )
+
+            return Response({
+                'status': 'success',
+                'message': f'Locker {slot_value} opened.',
+            }, status=status.HTTP_200_OK)
+
+        except Locker.DoesNotExist:
+            return Response({'error': f'Storage locker number {slot_value} not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def _trigger_gpio_pin(self, pin_number):
+        """
+        Fungsi untuk mengirim sinyal ke pin GPIO spesifik menggunakan gpiozero.
+        """
+        if GPIO_AVAILABLE:
+            try:
+                device = OutputDevice(pin_number, active_high=True, initial_value=False)
+                device.on()
+                import time
+                time.sleep(1)
+                device.off()
+            except Exception as e:
+                print(f"ERROR: Gagal mengontrol GPIO pin {pin_number} dengan gpiozero: {e}")
+                raise e
+        else:
+            print("--- SIMULASI GPIO ---")
+            print(f"gpiozero library tidak ditemukan.")
+            print(f"Mengirim sinyal HIGH ke pin {pin_number} selama 1 detik (simulasi).")
+            print("--- AKHIR SIMULASI ---")
 
 
 class LockerLogListView(generics.ListAPIView):
