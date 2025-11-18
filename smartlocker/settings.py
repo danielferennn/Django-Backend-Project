@@ -7,6 +7,11 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
+# MQTT Configuration                                                                                                                                                                     
+MQTT_BROKER_HOST = 'localhost'  # Ganti dengan IP broker MQTT Anda jika tidak di localhost                                                                                               
+MQTT_BROKER_PORT = 1883         # Port default MQTT                                                                                                                                      
+MQTT_TOPIC_COMMAND = 'penlok/command' # Topik untuk mengirim perintah ke Raspberry Pi
+
 LOG_DIR = BASE_DIR / 'logs'
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 

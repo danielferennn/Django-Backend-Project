@@ -16,23 +16,25 @@ from apps.notifications.models import Notification
 class MarketplaceSellerScopeTests(TestCase):
     def setUp(self):
         self.User = get_user_model()
+        owner_role = getattr(self.User, 'ROLE_OWNER', self.User.Role.OWNER)
+        buyer_role = getattr(self.User, 'ROLE_BUYER', self.User.Role.BUYER)
         self.seller_a = self.User.objects.create_user(
             email='seller_a@example.com',
             username='seller_a',
             password='pass123',
-            role=self.User.ROLE_OWNER,
+            role=owner_role,
         )
         self.seller_b = self.User.objects.create_user(
             email='seller_b@example.com',
             username='seller_b',
             password='pass123',
-            role=self.User.ROLE_OWNER,
+            role=owner_role,
         )
         self.buyer = self.User.objects.create_user(
             email='buyer@example.com',
             username='buyer_user',
             password='pass123',
-            role=self.User.ROLE_BUYER,
+            role=buyer_role,
         )
 
         self.store_a = Store.objects.create(owner=self.seller_a, name='A Store')

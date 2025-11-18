@@ -100,3 +100,9 @@
 [2025-11-17 20:03:03,151] INFO django.server: "POST /admin/lockers/locker/1/change/ HTTP/1.1" 302 0
 [2025-11-17 20:03:03,202] INFO django.server: "GET /admin/lockers/locker/ HTTP/1.1" 200 14103
 [2025-11-17 20:03:03,320] INFO django.server: "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+[2025-11-17 22:30:58,952] WARNING django.request: Forbidden: /api/v1/marketplace/products/17/
+[2025-11-17 22:31:43,206] WARNING django.request: Forbidden: /api/v1/marketplace/products/17/
+[2025-11-17 22:33:23,076] WARNING django.request: Forbidden: /api/v1/marketplace/products/17/
+[2025-11-17 22:33:24,468] INFO apps.notifications.tasks: Notification queued for users [19]: Payment Proof Uploaded
+[2025-11-17 22:33:24,476] WARNING django.request: Forbidden: /api/v1/marketplace/transactions/1/approve/
+[2025-11-17 22:33:24,479] INFO apps.notifications.tasks: Notification queued for users [21]: Order Approved

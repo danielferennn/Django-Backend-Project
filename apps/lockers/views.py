@@ -15,15 +15,30 @@ from .permissions import IsCourierUser
 from .serializers import LockerLogSerializer, OtpValidationSerializer
 from .services import BlynkAPIService
 from .tasks import send_notification_task
+import paho.mqtt.client as mqtt
+import json
 
-# Import gpiozero jika tersedia
+# MQTT Client Initialization
+mqtt_client = mqtt.Client()
 try:
-    from gpiozero import OutputDevice
-    GPIO_AVAILABLE = True
-except ImportError:
-    GPIO_AVAILABLE = False
-    print("WARNING: gpiozero library not found. GPIO control will be simulated.")
+    mqtt_client.connect(settings.MQTT_BROKER_HOST, settings.MQTT_BROKER_PORT, 60)
+    mqtt_client.loop_start()
+    print("MQTT Client Connected!")
+except Exception as e:
+    print(f"Failed to connect to MQTT Broker: {e}")
+    mqtt_client = None
 
+def _publish_mqtt_command(locker_number, action):
+    if mqtt_client:
+        topic = getattr(settings, 'MQTT_TOPIC_COMMAND', 'penlok/command')
+        message = json.dumps({"locker_number": str(locker_number), "action": action})
+        try:
+            mqtt_client.publish(topic, message)
+            print(f"Published MQTT message to {topic}: {message}")
+        except Exception as e:
+            print(f"Failed to publish MQTT message: {e}")
+    else:
+        print(f"MQTT client not connected. Simulating command: locker {locker_number}, action {action}")
 
 @extend_schema(exclude=True)
 class VerifyDeliveryView(APIView):
@@ -47,10 +62,7 @@ class VerifyDeliveryView(APIView):
                 raise ValueError(f"GPIO pin for inbound locker {inbound_locker.number} is not configured.")
             
             # Panggil fungsi untuk membuka loker via GPIO
-            # Kita perlu membuat instance dari OpenStorageLockerView untuk memanggil metodenya
-            # atau memindahkan _trigger_gpio_pin menjadi fungsi helper biasa.
-            # Untuk sementara, kita panggil langsung di sini.
-            OpenStorageLockerView()._trigger_gpio_pin(gpio_pin)
+            _publish_mqtt_command(inbound_locker.number, "open")
             # --- AKHIR LOGIKA BARU ---
             
             delivery.status = Delivery.DeliveryStatus.VERIFIED
@@ -142,8 +154,7 @@ class OpenStorageLockerView(APIView):
             if gpio_pin is None:
                 raise ValueError(f"GPIO pin for locker {slot_value} is not configured in the database.")
 
-            # 3. Panggil fungsi untuk membuka loker via GPIO
-            self._trigger_gpio_pin(gpio_pin)
+            _publish_mqtt_command(locker_to_open.number, "open")
 
             # 4. Catat aktivitas di log
             LockerLog.objects.create(
@@ -163,25 +174,7 @@ class OpenStorageLockerView(APIView):
         except Exception as e:
             return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def _trigger_gpio_pin(self, pin_number):
-        """
-        Fungsi untuk mengirim sinyal ke pin GPIO spesifik menggunakan gpiozero.
-        """
-        if GPIO_AVAILABLE:
-            try:
-                device = OutputDevice(pin_number, active_high=True, initial_value=False)
-                device.on()
-                import time
-                time.sleep(1)
-                device.off()
-            except Exception as e:
-                print(f"ERROR: Gagal mengontrol GPIO pin {pin_number} dengan gpiozero: {e}")
-                raise e
-        else:
-            print("--- SIMULASI GPIO ---")
-            print(f"gpiozero library tidak ditemukan.")
-            print(f"Mengirim sinyal HIGH ke pin {pin_number} selama 1 detik (simulasi).")
-            print("--- AKHIR SIMULASI ---")
+
 
 
 class LockerLogListView(generics.ListAPIView):

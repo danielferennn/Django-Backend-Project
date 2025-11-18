@@ -11,3 +11,4 @@ media/
 *.log
 .env.docker
 .env.docker
+/loker
