@@ -6,6 +6,8 @@ class IoTEvent(models.Model):
     class EventType(models.TextChoices):
         GENERIC = 'GENERIC', 'Generic'
         DEVICE = 'DEVICE', 'Device Event'
+        LOCKER_OPENED = 'LOCKER_OPENED', 'Locker Opened'
+        ITEM_DETECTED = 'ITEM_DETECTED', 'Item Detected'
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

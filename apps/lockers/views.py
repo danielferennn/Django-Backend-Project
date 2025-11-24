@@ -10,35 +10,11 @@ from apps.marketplace.models import Transaction
 from apps.notifications.tasks import push_notification_task
 from apps.users.models import User
 
-from .models import Delivery, Locker, LockerLog
+from .models import Delivery, Locker, LockerLog, LockerRequest
 from .permissions import IsCourierUser
 from .serializers import LockerLogSerializer, OtpValidationSerializer
 from .services import BlynkAPIService
 from .tasks import send_notification_task
-import paho.mqtt.client as mqtt
-import json
-
-# MQTT Client Initialization
-mqtt_client = mqtt.Client()
-try:
-    mqtt_client.connect(settings.MQTT_BROKER_HOST, settings.MQTT_BROKER_PORT, 60)
-    mqtt_client.loop_start()
-    print("MQTT Client Connected!")
-except Exception as e:
-    print(f"Failed to connect to MQTT Broker: {e}")
-    mqtt_client = None
-
-def _publish_mqtt_command(locker_number, action):
-    if mqtt_client:
-        topic = getattr(settings, 'MQTT_TOPIC_COMMAND', 'penlok/command')
-        message = json.dumps({"locker_number": str(locker_number), "action": action})
-        try:
-            mqtt_client.publish(topic, message)
-            print(f"Published MQTT message to {topic}: {message}")
-        except Exception as e:
-            print(f"Failed to publish MQTT message: {e}")
-    else:
-        print(f"MQTT client not connected. Simulating command: locker {locker_number}, action {action}")
 
 @extend_schema(exclude=True)
 class VerifyDeliveryView(APIView):
@@ -125,7 +101,7 @@ class ConfirmDepositWebhookView(APIView):
 class OpenStorageLockerView(APIView):
     """
     Endpoint untuk membuka loker penyimpanan (1, 2, atau 3) secara langsung
-    melalui pin GPIO Raspberry Pi menggunakan gpiozero.
+    melalui permintaan ke database yang akan diproses oleh sistem IoT.
     """
     permission_classes = [permissions.IsAuthenticated]
     VALID_SLOTS = {'1', '2', '3'} # Asumsi nomor loker di DB adalah string '1', '2', '3'
@@ -148,25 +124,25 @@ class OpenStorageLockerView(APIView):
         try:
             # 1. Cari loker di database berdasarkan nomornya
             locker_to_open = Locker.objects.get(number=slot_value, type=Locker.LockerType.STORAGE)
-            
-            # 2. Dapatkan nomor pin GPIO dari database
-            gpio_pin = locker_to_open.gpio_pin # Menggunakan field gpio_pin yang baru
-            if gpio_pin is None:
-                raise ValueError(f"GPIO pin for locker {slot_value} is not configured in the database.")
 
-            _publish_mqtt_command(locker_to_open.number, "open")
+            # 2. Buat permintaan pembukaan loker di database
+            LockerRequest.objects.create(
+                locker_number=slot_value,
+                requested_by=request.user,
+                fulfilled=False
+            )
 
-            # 4. Catat aktivitas di log
+            # 3. Catat aktivitas di log
             LockerLog.objects.create(
                 locker=locker_to_open,
                 user=request.user,
                 action=LockerLog.Action.OPEN,
-                details=f"Locker {slot_value} opened directly by user {request.user.email} via GPIO pin {gpio_pin}."
+                details=f"Locker {slot_value} opening request sent from user {request.user.email} via mobile app."
             )
 
             return Response({
                 'status': 'success',
-                'message': f'Locker {slot_value} opened.',
+                'message': f'Locker {slot_value} opening request sent.',
             }, status=status.HTTP_200_OK)
 
         except Locker.DoesNotExist:
