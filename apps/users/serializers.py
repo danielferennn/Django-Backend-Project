@@ -102,29 +102,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(password=password, **user_data)
         return user
 
-# punya mas fahmi gaada 3 class dibawah ini
-# class BuyerRegistrationSerializer(UserRegistrationSerializerBase):
-#     role_value = User.ROLE_BUYER
-#     allow_role_override = False
-
-
-# class OwnerRegistrationSerializer(UserRegistrationSerializerBase):
-#     role_value = User.ROLE_OWNER
-#     allow_role_override = False
-
-
-# class UserRegistrationSerializer(BuyerRegistrationSerializer):
-#     """Backward compatible serializer for the legacy /register endpoint."""
-#     allow_role_override = True
-
-
-# class UserDetailSerializer yg punya kita ku comment, yang punya mas fahmi yg dibawahnya
-# class UserDetailSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = User
-#         fields = ('id', 'username', 'email', 'role', 'face_id')
-
 class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'role')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'face_id', 'role')

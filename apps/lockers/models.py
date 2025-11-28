@@ -32,6 +32,15 @@ class LockerLog(models.Model):
     is_successful = models.BooleanField(default=True)
     details = models.TextField(blank=True, null=True)
 
+class LockerRequest(models.Model):
+    locker_number = models.CharField(max_length=10)
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    fulfilled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Request for locker {self.locker_number} by {self.requested_by} at {self.created_at}"
+
 class Delivery(models.Model):
     class DeliveryStatus(models.TextChoices):
         PENDING = 'PENDING', 'Pending Verification'

@@ -57,14 +57,15 @@ class UserRegistrationView(generics.CreateAPIView):
 
 class Usergetrole(APIView):
     def get(self,request):
-        items=models.User.objects.filter(role=models.User.Role.OWNER)
-        userdetail=serializer.UserDetailSerializer(items,many=True)
+        faceidowner=request.query_params.get('faceid', None)
+        # items=models.User.objects.filter(role=models.User.Role.OWNER)
+        items=models.User.objects.get(face_id=faceidowner)
+        userdetail=serializer.UserDetailSerializer(items)
+        # userdetail=serializer.UserDetailSerializer(items,many=True)
         return Response(userdetail.data,status=status.HTTP_200_OK)
-
 
 class UserLoginView(TokenObtainPairView):
     permission_classes = (permissions.AllowAny,)
-
 
 class UserProfileView(generics.RetrieveAPIView):
     queryset = User.objects.all()
