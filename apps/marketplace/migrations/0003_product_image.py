@@ -10,17 +10,16 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.SeparateDatabaseAndState(
-            database_operations=[
-                migrations.RunSQL(
-                    sql="ALTER TABLE marketplace_product DROP COLUMN IF EXISTS image CASCADE;",
-                ),
-                migrations.RunSQL(
-                    sql="ALTER TABLE marketplace_product DROP COLUMN IF EXISTS created_at CASCADE;",
-                ),
-                migrations.RunSQL(
-                    sql="ALTER TABLE marketplace_product DROP COLUMN IF EXISTS updated_at CASCADE;",
-                ),
-            ],
+            # No database operations. The earlier ``0002_product_image`` node
+            # already created the ``image`` column, and ``created_at`` /
+            # ``updated_at`` are physically added later by
+            # ``0008_fix_product_media_fields``. The original
+            # ``DROP COLUMN ... CASCADE`` statements destroyed populated
+            # ``image`` values (and any pre-existing timestamps) for every
+            # database upgrading through this node, so they were removed.
+            # The state-only field definitions are kept so the migration graph
+            # and the resulting model state are unchanged.
+            database_operations=[],
             state_operations=[
                 migrations.AddField(
                     model_name='product',
