@@ -34,4 +34,6 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='api-schema'), name='api-docs'),
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+if settings.DEBUG and settings.SERVE_MEDIA:
+    urlpatterns += static('/media/products/', document_root=settings.MEDIA_ROOT / 'products')
+    urlpatterns += static('/media/product_images/', document_root=settings.MEDIA_ROOT / 'product_images')
