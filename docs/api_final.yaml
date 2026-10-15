@@ -149,9 +149,301 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/v1/facerecognition/access-logs/{log_id}/image/:
+    get:
+      operationId: v1_facerecognition_access_logs_image_retrieve
+      description: 'Stream a private face access-log image. Owner-only (or staff);
+        unknown-face logs are staff-only. Served with Cache-Control: private, no-store.'
+      parameters:
+      - in: path
+        name: log_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+  /api/v1/facerecognition/createimagetrainingusernew/:
+    post:
+      operationId: v1_facerecognition_createimagetrainingusernew_create
+      description: Register 1-10 face training images for an owner account and rebuild
+        the private recognition model. Owner-only; staff may target another owner
+        via the username field.
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FaceTrainingUploadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FaceTrainingUploadRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceTrainingRegistrationResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceError'
+          description: ''
+  /api/v1/facerecognition/createlogusersmartnew/:
+    post:
+      operationId: v1_facerecognition_createlogusersmartnew_create
+      description: Device face-recognition ingest. Requires the X-Device-Token header
+        (403 device_auth_failed otherwise). Returns the authorization decision and
+        access-log id for the submitted camera frame.
+      parameters:
+      - in: header
+        name: X-Device-Token
+        schema:
+          type: string
+        description: Shared device credential; a missing/incorrect value yields 403
+          device_auth_failed.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DeviceRecognitionUploadRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DeviceRecognitionUploadRequest'
+        required: true
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceRecognitionResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceError'
+          description: ''
+  /api/v1/facerecognition/getuserimageexists/:
+    get:
+      operationId: v1_facerecognition_getuserimageexists_retrieve
+      description: List the registered face training images for an owner account.
+      parameters:
+      - in: query
+        name: username
+        schema:
+          type: string
+        description: Owner username to inspect; staff may target another owner.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceTrainingListResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/facerecognition/getuserlogsmartnew/:
+    get:
+      operationId: v1_facerecognition_getuserlogsmartnew_retrieve
+      description: List face access logs for an owner account.
+      parameters:
+      - in: query
+        name: username
+        schema:
+          type: string
+        description: Owner username to inspect; staff may target another owner.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceAccessLogListResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+  /api/v1/facerecognition/training-images/{id}/:
+    get:
+      operationId: v1_facerecognition_training_images_retrieve
+      description: 'Stream a private face-training image. Owner-only (or staff); served
+        with Cache-Control: private, no-store and no public storage URL.'
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+    delete:
+      operationId: v1_facerecognition_training_images_destroy
+      description: Delete a private face-training image and rebuild the recognition
+        model. Owner-only (or staff).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceDetail'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceError'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FaceError'
+          description: ''
   /api/v1/iot/events/:
     post:
       operationId: v1_iot_events_create
+      description: Device event ingest. Requires the X-Device-Token header. Idempotent
+        by event_id; a late event past expiry returns 409 with reconciliation_required.
+      parameters:
+      - in: header
+        name: X-Device-Token
+        schema:
+          type: string
+        description: Shared device credential; a missing/incorrect value yields 403
+          device_auth_failed.
+        required: true
       tags:
       - v1
       requestBody:
@@ -167,14 +459,295 @@ paths:
               $ref: '#/components/schemas/IoTIngest'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IoTEvent'
+          description: ''
         '200':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/IoTEvent'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IoTDetail'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IoTError'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/v1/lockers/commands/{command_id}/:
+    get:
+      operationId: v1_lockers_commands_retrieve
+      parameters:
+      - in: path
+        name: command_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerRequest'
+          description: ''
+  /api/v1/lockers/commands/{command_id}/reconcile/:
+    post:
+      operationId: v1_lockers_commands_reconcile_create
+      parameters:
+      - in: path
+        name: command_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LockerCommandReconciliation'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LockerCommandReconciliation'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LockerCommandReconciliation'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerRequest'
+          description: ''
+  /api/v1/lockers/deliveries/{delivery_id}/retrieve/:
+    post:
+      operationId: v1_lockers_deliveries_retrieve_create
+      description: Owner retrieves their stored delivery; returns the queued locker
+        command.
+      parameters:
+      - in: path
+        name: delivery_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerRequest'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+  /api/v1/lockers/inbound/{delivery_id}/store/:
+    post:
+      operationId: v1_lockers_inbound_store_create
+      description: Courier stores an inbound delivery in its assigned storage locker;
+        returns the queued command.
+      parameters:
+      - in: path
+        name: delivery_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerRequest'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+  /api/v1/lockers/inbound/{delivery_id}/transfer/:
+    post:
+      operationId: v1_lockers_inbound_transfer_create
+      description: Courier transfers an inbound delivery to its storage locker; returns
+        the queued command.
+      parameters:
+      - in: path
+        name: delivery_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerRequest'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+  /api/v1/lockers/inbound/verify-delivery/:
+    post:
+      operationId: v1_lockers_inbound_verify_delivery_create
+      description: Courier verifies an inbound delivery by receipt number and receives
+        the queued locker command (MQTT dispatch). Courier-only.
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptNumber'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ReceiptNumber'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ReceiptNumber'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '202':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerRequest'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
+          description: ''
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerCommandError'
           description: ''
   /api/v1/lockers/logs/:
     get:
@@ -192,29 +765,165 @@ paths:
                 items:
                   $ref: '#/components/schemas/LockerLog'
           description: ''
-  /api/v1/lockers/otp/validate/:
+  /api/v1/marketplace/my-products/:
+    get:
+      operationId: v1_marketplace_my_products_list
+      description: |-
+        Dedicated endpoints for sellers to manage their own products without the
+        public queryset restrictions applied in ProductViewSet.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+          description: ''
     post:
-      operationId: v1_lockers_otp_validate_create
+      operationId: v1_marketplace_my_products_create
+      description: |-
+        Dedicated endpoints for sellers to manage their own products without the
+        public queryset restrictions applied in ProductViewSet.
       tags:
       - v1
       requestBody:
         content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OtpValidation'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/OtpValidation'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/OtpValidation'
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
         required: true
       security:
       - jwtAuth: []
-      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+  /api/v1/marketplace/my-products/{id}/:
+    get:
+      operationId: v1_marketplace_my_products_retrieve
+      description: |-
+        Dedicated endpoints for sellers to manage their own products without the
+        public queryset restrictions applied in ProductViewSet.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
       responses:
         '200':
-          description: OTP validation success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    put:
+      operationId: v1_marketplace_my_products_update
+      description: |-
+        Dedicated endpoints for sellers to manage their own products without the
+        public queryset restrictions applied in ProductViewSet.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Product'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Product'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    patch:
+      operationId: v1_marketplace_my_products_partial_update
+      description: |-
+        Dedicated endpoints for sellers to manage their own products without the
+        public queryset restrictions applied in ProductViewSet.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProduct'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+          description: ''
+    delete:
+      operationId: v1_marketplace_my_products_destroy
+      description: |-
+        Dedicated endpoints for sellers to manage their own products without the
+        public queryset restrictions applied in ProductViewSet.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this product.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/v1/marketplace/products/:
     get:
       operationId: v1_marketplace_products_list
@@ -237,13 +946,13 @@ paths:
       - v1
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/Product'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/Product'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/Product'
         required: true
@@ -263,7 +972,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this product.
         required: true
       tags:
       - v1
@@ -282,19 +992,20 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this product.
         required: true
       tags:
       - v1
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/Product'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/Product'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/Product'
         required: true
@@ -313,19 +1024,20 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this product.
         required: true
       tags:
       - v1
       requestBody:
         content:
-          application/json:
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/PatchedProduct'
           application/x-www-form-urlencoded:
             schema:
               $ref: '#/components/schemas/PatchedProduct'
-          multipart/form-data:
+          application/json:
             schema:
               $ref: '#/components/schemas/PatchedProduct'
       security:
@@ -343,7 +1055,8 @@ paths:
       - in: path
         name: id
         schema:
-          type: string
+          type: integer
+        description: A unique integer value identifying this product.
         required: true
       tags:
       - v1
@@ -415,6 +1128,42 @@ paths:
               schema:
                 $ref: '#/components/schemas/Store'
           description: ''
+  /api/v1/marketplace/stores/:
+    get:
+      operationId: v1_marketplace_stores_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Store'
+          description: ''
+  /api/v1/marketplace/stores/{id}/:
+    get:
+      operationId: v1_marketplace_stores_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Store'
+          description: ''
   /api/v1/marketplace/transactions/:
     get:
       operationId: v1_marketplace_transactions_list
@@ -471,9 +1220,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/Transaction'
           description: ''
-  /api/v1/marketplace/transactions/{id}/generate-otp/:
+  /api/v1/marketplace/transactions/{id}/buyer-shipping/:
     post:
-      operationId: v1_marketplace_transactions_generate_otp_create
+      operationId: v1_marketplace_transactions_buyer_shipping_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionShipping'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TransactionShipping'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TransactionShipping'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/{id}/deposit/:
+    post:
+      operationId: v1_marketplace_transactions_deposit_create
       parameters:
       - in: path
         name: id
@@ -489,9 +1270,36 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Transaction'
+                $ref: '#/components/schemas/LockerRequest'
           description: ''
   /api/v1/marketplace/transactions/{id}/payment-proof/:
+    get:
+      operationId: v1_marketplace_transactions_payment_proof_retrieve
+      description: |-
+        Stream the private proof to its seller (or staff) only.
+
+        ``TransactionSerializer`` deliberately omits the proof, so verification
+        needs a dedicated, authenticated read that never exposes a public
+        storage URL.  Buyers and unrelated sellers are denied; a transaction
+        without a proof, or whose stored file has gone missing, is a 404.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+          description: ''
     post:
       operationId: v1_marketplace_transactions_payment_proof_create
       parameters:
@@ -520,6 +1328,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Transaction'
           description: ''
+  /api/v1/marketplace/transactions/{id}/pickup-code/reissue/:
+    post:
+      operationId: v1_marketplace_transactions_pickup_code_reissue_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+          description: ''
   /api/v1/marketplace/transactions/{id}/reject/:
     post:
       operationId: v1_marketplace_transactions_reject_create
@@ -539,6 +1367,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Transaction'
+          description: ''
+  /api/v1/marketplace/transactions/{id}/retrieve/:
+    post:
+      operationId: v1_marketplace_transactions_retrieve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PickupCode'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PickupCode'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PickupCode'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LockerRequest'
           description: ''
   /api/v1/marketplace/transactions/{id}/shipping/:
     post:
@@ -581,13 +1441,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Transaction'
+              $ref: '#/components/schemas/CreateTransaction'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/Transaction'
+              $ref: '#/components/schemas/CreateTransaction'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Transaction'
+              $ref: '#/components/schemas/CreateTransaction'
         required: true
       security:
       - jwtAuth: []
@@ -596,7 +1456,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Transaction'
+                $ref: '#/components/schemas/CreateTransaction'
           description: ''
   /api/v1/notifications/:
     get:
@@ -635,7 +1495,302 @@ paths:
       - jwtAuth: []
       responses:
         '201':
-          description: Notification queued
+          description: Notification created
+  /api/v1/package-center/packages/:
+    get:
+      operationId: v1_package_center_packages_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PackageEntry'
+          description: ''
+    post:
+      operationId: v1_package_center_packages_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackageEntry'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PackageEntry'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PackageEntry'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageEntry'
+          description: ''
+  /api/v1/package-center/packages/{id}/:
+    get:
+      operationId: v1_package_center_packages_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this package entry.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageEntry'
+          description: ''
+    put:
+      operationId: v1_package_center_packages_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this package entry.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PackageEntry'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PackageEntry'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PackageEntry'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageEntry'
+          description: ''
+    patch:
+      operationId: v1_package_center_packages_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this package entry.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPackageEntry'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPackageEntry'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPackageEntry'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackageEntry'
+          description: ''
+    delete:
+      operationId: v1_package_center_packages_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this package entry.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/packages/:
+    get:
+      operationId: v1_packages_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Package'
+          description: ''
+    post:
+      operationId: v1_packages_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Package'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Package'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Package'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Package'
+          description: ''
+  /api/v1/packages/{id}/:
+    get:
+      operationId: v1_packages_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Package'
+          description: ''
+    put:
+      operationId: v1_packages_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Package'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/Package'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Package'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Package'
+          description: ''
+    patch:
+      operationId: v1_packages_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPackage'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPackage'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPackage'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Package'
+          description: ''
+  /api/v1/packages/active/:
+    get:
+      operationId: v1_packages_active_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Package'
+          description: ''
+  /api/v1/packages/completed/:
+    get:
+      operationId: v1_packages_completed_list
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Package'
+          description: ''
   /api/v1/users/login/:
     post:
       operationId: v1_users_login_create
@@ -724,7 +1879,6 @@ paths:
               $ref: '#/components/schemas/UserRegistration'
         required: true
       security:
-      - jwtAuth: []
       - {}
       responses:
         '201':
@@ -732,6 +1886,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserRegistration'
+          description: ''
+  /api/v1/users/userowner/:
+    get:
+      operationId: v1_users_userowner_retrieve
+      description: Look up a user profile by face id. Non-staff callers may only look
+        up their own record; others receive 404.
+      parameters:
+      - in: query
+        name: faceid
+        schema:
+          type: string
+        description: Face id of the user to look up.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDetail'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLookupError'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLookupError'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLookupError'
           description: ''
 components:
   schemas:
@@ -741,51 +1936,280 @@ components:
       - CLOSE
       - DEPOSIT
       - RETRIEVE
+      - RECONCILE
       type: string
       description: |-
         * `OPEN` - Open
         * `CLOSE` - Close
         * `DEPOSIT` - Deposit
         * `RETRIEVE` - Retrieve
-    EventTypeEnum:
+        * `RECONCILE` - Reconcile
+    CreateTransaction:
+      type: object
+      properties:
+        product_id:
+          type: integer
+          minimum: 1
+        quantity:
+          type: integer
+          minimum: 1
+        buyer_full_name:
+          type: string
+          default: ''
+          maxLength: 255
+        shipping_address:
+          type: string
+          default: ''
+        buyer_phone_number:
+          type: string
+          default: ''
+          maxLength: 32
+      required:
+      - product_id
+      - quantity
+    DecisionEnum:
       enum:
-      - GENERIC
-      - DEVICE
+      - retry
+      - confirm_failed
+      - confirm_completed
       type: string
       description: |-
-        * `GENERIC` - Generic
-        * `DEVICE` - Device Event
+        * `retry` - Retry
+        * `confirm_failed` - Confirm failed
+        * `confirm_completed` - Confirm completed
+    DeviceRecognitionResponse:
+      type: object
+      description: 'Device ingest response: one authorization decision per submitted
+        image.'
+      properties:
+        log_id:
+          type: string
+        status:
+          type: string
+        confidence:
+          type: number
+          format: double
+          nullable: true
+      required:
+      - confidence
+      - log_id
+      - status
+    DeviceRecognitionUploadRequest:
+      type: object
+      description: Schema-only mirror of the device ingest multipart payload (no runtime
+        use).
+      properties:
+        image:
+          type: string
+          format: uri
+          description: Single camera frame to recognize.
+      required:
+      - image
+    FaceAccessLog:
+      type: object
+      properties:
+        log_id:
+          type: string
+        id_face_user:
+          type: string
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+        access_time:
+          type: string
+          format: date-time
+        status:
+          type: string
+      required:
+      - access_time
+      - id_face_user
+      - image_url
+      - log_id
+      - status
+    FaceAccessLogListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaceAccessLog'
+      required:
+      - data
+      - status
+    FaceDetail:
+      type: object
+      description: Body shape for DRF ``PermissionDenied``/``Http404`` responses.
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
+    FaceError:
+      type: object
+      description: 'Body shape for ``Response({''error'': ...})`` responses.'
+      properties:
+        error:
+          type: string
+      required:
+      - error
+    FaceTrainingListResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaceTrainingRecord'
+      required:
+      - data
+      - status
+    FaceTrainingRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        image_url:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+      - created_at
+      - id
+      - image_url
+      - updated_at
+    FaceTrainingRegistrationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        message:
+          type: string
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FaceTrainingRecord'
+      required:
+      - data
+      - message
+      - status
+    FaceTrainingUploadRequest:
+      type: object
+      description: Schema-only mirror of the multipart upload payload (no runtime
+        use).
+      properties:
+        image_list:
+          type: array
+          items:
+            type: string
+            format: uri
+          description: One or more training images (1-10 per request).
+        username:
+          type: string
+          description: Target owner username; staff may upload for another owner.
+      required:
+      - image_list
+    IoTDetail:
+      type: object
+      description: Schema-only body for DRF ``PermissionDenied`` outcomes (no runtime
+        use).
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
+    IoTError:
+      type: object
+      description: 'Schema-only body for ``Response({''error'': ...})`` outcomes (no
+        runtime use).'
+      properties:
+        error:
+          type: string
+      required:
+      - error
     IoTEvent:
       type: object
       properties:
         id:
           type: integer
           readOnly: true
-        user:
-          type: integer
-          nullable: true
+        event_id:
+          type: string
+          format: uuid
+          readOnly: true
+        command_id:
+          type: string
+          format: uuid
+          readOnly: true
         event_type:
-          $ref: '#/components/schemas/EventTypeEnum'
-        payload: {}
+          allOf:
+          - $ref: '#/components/schemas/IoTEventEventTypeEnum'
+          readOnly: true
+        payload:
+          readOnly: true
         created_at:
           type: string
           format: date-time
           readOnly: true
       required:
+      - command_id
       - created_at
+      - event_id
+      - event_type
       - id
       - payload
+    IoTEventEventTypeEnum:
+      enum:
+      - GENERIC
+      - DEVICE
+      - LOCKER_OPENED
+      - ITEM_DETECTED
+      - ITEM_REMOVED
+      - COMMAND_FAILED
+      type: string
+      description: |-
+        * `GENERIC` - Generic
+        * `DEVICE` - Device event
+        * `LOCKER_OPENED` - Locker opened
+        * `ITEM_DETECTED` - Item detected
+        * `ITEM_REMOVED` - Item removed
+        * `COMMAND_FAILED` - Command failed
     IoTIngest:
       type: object
       properties:
-        user_id:
-          type: integer
-          nullable: true
+        event_id:
+          type: string
+          format: uuid
+        command_id:
+          type: string
+          format: uuid
         event_type:
-          $ref: '#/components/schemas/EventTypeEnum'
+          $ref: '#/components/schemas/IoTIngestEventTypeEnum'
         payload: {}
       required:
-      - payload
+      - command_id
+      - event_id
+      - event_type
+    IoTIngestEventTypeEnum:
+      enum:
+      - LOCKER_OPENED
+      - ITEM_DETECTED
+      - ITEM_REMOVED
+      - COMMAND_FAILED
+      type: string
+      description: |-
+        * `LOCKER_OPENED` - LOCKER_OPENED
+        * `ITEM_DETECTED` - ITEM_DETECTED
+        * `ITEM_REMOVED` - ITEM_REMOVED
+        * `COMMAND_FAILED` - COMMAND_FAILED
     Locker:
       type: object
       properties:
@@ -799,27 +2223,34 @@ components:
           $ref: '#/components/schemas/TypeEnum'
         status:
           $ref: '#/components/schemas/LockerStatusEnum'
-        blynk_device_token:
-          type: string
-          maxLength: 255
-        blynk_vpin_control:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-        blynk_vpin_sensor:
-          type: integer
-          maximum: 2147483647
-          minimum: -2147483648
-        last_opened_by:
-          type: integer
-          nullable: true
       required:
-      - blynk_device_token
-      - blynk_vpin_control
-      - blynk_vpin_sensor
       - id
       - number
       - type
+    LockerCommandError:
+      type: object
+      description: |-
+        Reusable locker error body.
+
+        ``_command_response`` returns ``{'error': ...}`` for handled failures while
+        DRF returns ``{'detail': ...}`` for permission/not-found; both keys are
+        optional so one schema covers either shape.
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+    LockerCommandReconciliation:
+      type: object
+      properties:
+        decision:
+          $ref: '#/components/schemas/DecisionEnum'
+        confirmation:
+          type: string
+          default: ''
+          maxLength: 64
+      required:
+      - decision
     LockerLog:
       type: object
       properties:
@@ -832,34 +2263,126 @@ components:
           readOnly: true
         user:
           allOf:
-          - $ref: '#/components/schemas/UserDetail'
+          - $ref: '#/components/schemas/UserPublic'
           readOnly: true
+        command:
+          type: integer
+          readOnly: true
+          nullable: true
+        transaction:
+          type: integer
+          readOnly: true
+          nullable: true
+        delivery:
+          type: integer
+          readOnly: true
+          nullable: true
         action:
-          $ref: '#/components/schemas/ActionEnum'
+          allOf:
+          - $ref: '#/components/schemas/ActionEnum'
+          readOnly: true
         timestamp:
           type: string
           format: date-time
           readOnly: true
         is_successful:
           type: boolean
+          readOnly: true
         details:
           type: string
+          readOnly: true
           nullable: true
       required:
       - action
+      - command
+      - delivery
+      - details
       - id
+      - is_successful
       - locker
       - timestamp
+      - transaction
       - user
+    LockerRequest:
+      type: object
+      properties:
+        command_id:
+          type: string
+          format: uuid
+          readOnly: true
+        locker_number:
+          type: string
+          readOnly: true
+          nullable: true
+        purpose:
+          readOnly: true
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/PurposeEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        status:
+          allOf:
+          - $ref: '#/components/schemas/LockerRequestStatusEnum'
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        published_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        error_code:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - command_id
+      - completed_at
+      - created_at
+      - error_code
+      - expires_at
+      - locker_number
+      - published_at
+      - purpose
+      - status
+    LockerRequestStatusEnum:
+      enum:
+      - PENDING
+      - SENT
+      - OPENED
+      - COMPLETED
+      - FAILED
+      - UNKNOWN
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `SENT` - Sent
+        * `OPENED` - Opened
+        * `COMPLETED` - Completed
+        * `FAILED` - Failed
+        * `UNKNOWN` - Unknown
     LockerStatusEnum:
       enum:
       - AVAILABLE
       - OCCUPIED
+      - RESERVED
       - MAINTENANCE
       type: string
       description: |-
         * `AVAILABLE` - Available
         * `OCCUPIED` - Occupied
+        * `RESERVED` - Reserved
         * `MAINTENANCE` - Maintenance
     Notification:
       type: object
@@ -884,8 +2407,12 @@ components:
     NotificationPush:
       type: object
       properties:
-        user_id:
-          type: integer
+        user_ids:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+          maxItems: 100
         title:
           type: string
           maxLength: 255
@@ -894,15 +2421,193 @@ components:
       required:
       - body
       - title
-      - user_id
-    OtpValidation:
+      - user_ids
+    NullEnum:
+      enum:
+      - null
+    Package:
       type: object
       properties:
-        otp:
+        id:
+          type: integer
+          readOnly: true
+        name:
           type: string
-          maxLength: 6
+          maxLength: 120
+        tracking_number:
+          type: string
+          maxLength: 120
+        courier:
+          type: string
+          maxLength: 60
+        order_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/PackageStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
       required:
-      - otp
+      - created_at
+      - id
+      - name
+      - tracking_number
+      - updated_at
+    PackageEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        owner:
+          type: integer
+          readOnly: true
+        package_name:
+          type: string
+          maxLength: 255
+        tracking_number:
+          type: string
+          maxLength: 128
+        courier:
+          type: string
+          maxLength: 128
+        order_date:
+          type: string
+          format: date
+          nullable: true
+        delivered_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/PackageEntryStatusEnum'
+        locker_slot:
+          type: string
+          maxLength: 32
+        receiver_name:
+          type: string
+          maxLength: 255
+        receiver_phone:
+          type: string
+          maxLength: 32
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - owner
+      - package_name
+      - tracking_number
+      - updated_at
+    PackageEntryStatusEnum:
+      enum:
+      - REGISTERED
+      - IN_TRANSIT
+      - DELIVERED
+      type: string
+      description: |-
+        * `REGISTERED` - Registered
+        * `IN_TRANSIT` - In Transit
+        * `DELIVERED` - Delivered
+    PackageStatusEnum:
+      enum:
+      - ACTIVE
+      - COMPLETED
+      type: string
+      description: |-
+        * `ACTIVE` - Active
+        * `COMPLETED` - Completed
+    PatchedPackage:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        name:
+          type: string
+          maxLength: 120
+        tracking_number:
+          type: string
+          maxLength: 120
+        courier:
+          type: string
+          maxLength: 60
+        order_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/PackageStatusEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+    PatchedPackageEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        owner:
+          type: integer
+          readOnly: true
+        package_name:
+          type: string
+          maxLength: 255
+        tracking_number:
+          type: string
+          maxLength: 128
+        courier:
+          type: string
+          maxLength: 128
+        order_date:
+          type: string
+          format: date
+          nullable: true
+        delivered_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          $ref: '#/components/schemas/PackageEntryStatusEnum'
+        locker_slot:
+          type: string
+          maxLength: 32
+        receiver_name:
+          type: string
+          maxLength: 255
+        receiver_phone:
+          type: string
+          maxLength: 32
+        notes:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
     PatchedProduct:
       type: object
       properties:
@@ -912,6 +2617,14 @@ components:
         store:
           type: integer
           readOnly: true
+        seller:
+          allOf:
+          - $ref: '#/components/schemas/UserPublic'
+          readOnly: true
+        store_info:
+          allOf:
+          - $ref: '#/components/schemas/Store'
+          readOnly: true
         name:
           type: string
           maxLength: 255
@@ -925,6 +2638,24 @@ components:
           minimum: 0
         description:
           type: string
+        image:
+          type: string
+          format: uri
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
     PatchedStore:
       type: object
       properties:
@@ -933,13 +2664,16 @@ components:
           readOnly: true
         owner:
           allOf:
-          - $ref: '#/components/schemas/UserDetail'
+          - $ref: '#/components/schemas/UserPublic'
           readOnly: true
         name:
           type: string
           maxLength: 255
         description:
           type: string
+        location:
+          type: string
+          maxLength: 255
     PaymentProofUpload:
       type: object
       properties:
@@ -948,6 +2682,14 @@ components:
           format: uri
       required:
       - payment_proof
+    PickupCode:
+      type: object
+      properties:
+        otp:
+          type: string
+          pattern: ^\d{6}$
+      required:
+      - otp
     Product:
       type: object
       properties:
@@ -957,6 +2699,14 @@ components:
         store:
           type: integer
           readOnly: true
+        seller:
+          allOf:
+          - $ref: '#/components/schemas/UserPublic'
+          readOnly: true
+        store_info:
+          allOf:
+          - $ref: '#/components/schemas/Store'
+          readOnly: true
         name:
           type: string
           maxLength: 255
@@ -970,12 +2720,61 @@ components:
           minimum: 0
         description:
           type: string
+        image:
+          type: string
+          format: uri
+          nullable: true
+        image_url:
+          type: string
+          nullable: true
+          readOnly: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
       required:
+      - created_at
       - description
       - id
+      - image_url
       - name
       - price
+      - seller
       - store
+      - store_info
+      - updated_at
+    PurposeEnum:
+      enum:
+      - INBOUND_DEPOSIT
+      - INBOUND_RETRIEVE
+      - STORAGE_DEPOSIT
+      - STORAGE_RETRIEVE
+      - MARKETPLACE_DEPOSIT
+      - MARKETPLACE_RETRIEVE
+      type: string
+      description: |-
+        * `INBOUND_DEPOSIT` - Inbound deposit
+        * `INBOUND_RETRIEVE` - Inbound retrieval
+        * `STORAGE_DEPOSIT` - Storage deposit
+        * `STORAGE_RETRIEVE` - Storage retrieval
+        * `MARKETPLACE_DEPOSIT` - Marketplace deposit
+        * `MARKETPLACE_RETRIEVE` - Marketplace retrieval
+    ReceiptNumber:
+      type: object
+      description: Schema-only request body for inbound delivery verification (no
+        runtime use).
+      properties:
+        receipt_number:
+          type: string
+          description: Courier delivery receipt number to verify.
+      required:
+      - receipt_number
     RoleEnum:
       enum:
       - OWNER
@@ -998,13 +2797,16 @@ components:
           readOnly: true
         owner:
           allOf:
-          - $ref: '#/components/schemas/UserDetail'
+          - $ref: '#/components/schemas/UserPublic'
           readOnly: true
         name:
           type: string
           maxLength: 255
         description:
           type: string
+        location:
+          type: string
+          maxLength: 255
       required:
       - id
       - name
@@ -1049,11 +2851,11 @@ components:
           readOnly: true
         buyer:
           allOf:
-          - $ref: '#/components/schemas/UserDetail'
+          - $ref: '#/components/schemas/UserPublic'
           readOnly: true
         seller:
           allOf:
-          - $ref: '#/components/schemas/UserDetail'
+          - $ref: '#/components/schemas/UserPublic'
           readOnly: true
         buyer_name:
           type: string
@@ -1070,27 +2872,15 @@ components:
           readOnly: true
         quantity:
           type: integer
-          maximum: 2147483647
-          minimum: 0
+          readOnly: true
         total_price:
           type: string
           format: decimal
           pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
         status:
           allOf:
           - $ref: '#/components/schemas/TransactionStatusEnum'
-          readOnly: true
-        payment_gateway_id:
-          type: string
-          readOnly: true
-          nullable: true
-        payment_proof:
-          type: string
-          format: uri
-          readOnly: true
-          nullable: true
-        payment_proof_url:
-          type: string
           readOnly: true
         payment_proof_uploaded_at:
           type: string
@@ -1102,28 +2892,24 @@ components:
           format: date-time
           readOnly: true
           nullable: true
-        payment_expires_at:
+        buyer_full_name:
+          type: string
+          readOnly: true
+        shipping_address:
+          type: string
+          readOnly: true
+        buyer_phone_number:
+          type: string
+          readOnly: true
+        locker:
+          type: integer
+          readOnly: true
+          nullable: true
+        deposited_at:
           type: string
           format: date-time
           readOnly: true
           nullable: true
-        qris_payload:
-          type: string
-          readOnly: true
-        qris_image:
-          type: string
-          readOnly: true
-        buyer_full_name:
-          type: string
-          maxLength: 255
-        shipping_address:
-          type: string
-        buyer_phone_number:
-          type: string
-          maxLength: 32
-        otp_code:
-          type: string
-          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -1135,23 +2921,21 @@ components:
           nullable: true
       required:
       - buyer
+      - buyer_full_name
       - buyer_name
+      - buyer_phone_number
       - created_at
+      - deposited_at
       - id
-      - otp_code
+      - locker
       - paid_at
-      - payment_expires_at
-      - payment_gateway_id
-      - payment_proof
       - payment_proof_uploaded_at
-      - payment_proof_url
       - product
       - product_name
-      - qris_image
-      - qris_payload
       - quantity
       - seller
       - seller_name
+      - shipping_address
       - status
       - total_price
       - updated_at
@@ -1173,23 +2957,21 @@ components:
     TransactionStatusEnum:
       enum:
       - PENDING
-      - PAID
-      - ESCROW
+      - NEED_VERIFICATION
+      - PAYMENT_VERIFIED
       - AWAITING_PICKUP
-      - RELEASED
       - COMPLETED
-      - FAILED
       - REJECTED
+      - FAILED
       type: string
       description: |-
-        * `PENDING` - Pending Payment
-        * `PAID` - Paid
-        * `ESCROW` - Escrow
-        * `AWAITING_PICKUP` - Awaiting Pickup
-        * `RELEASED` - Escrow Released
+        * `PENDING` - Pending manual payment
+        * `NEED_VERIFICATION` - Payment proof awaiting verification
+        * `PAYMENT_VERIFIED` - Payment verified
+        * `AWAITING_PICKUP` - Awaiting pickup
         * `COMPLETED` - Completed
-        * `FAILED` - Failed
         * `REJECTED` - Rejected
+        * `FAILED` - Failed
     TypeEnum:
       enum:
       - INBOUND
@@ -1216,14 +2998,57 @@ components:
           type: string
           format: email
           maxLength: 254
-        role:
-          $ref: '#/components/schemas/RoleEnum'
+        first_name:
+          type: string
+          description: First name (required for OWNER role)
+          maxLength: 150
+        last_name:
+          type: string
+          description: Last name (required for OWNER role)
+          maxLength: 150
         face_id:
           type: string
+          readOnly: true
           nullable: true
-          maxLength: 32
+          description: Unique ID for face recognition (OWNER only)
+        role:
+          $ref: '#/components/schemas/RoleEnum'
       required:
       - email
+      - face_id
+      - id
+      - username
+    UserLookupError:
+      type: object
+      description: Reusable body for ``{detail, faceid}`` DRF error responses (schema-only).
+      properties:
+        detail:
+          type: string
+        faceid:
+          type: array
+          items:
+            type: string
+    UserPublic:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        first_name:
+          type: string
+          description: First name (required for OWNER role)
+          maxLength: 150
+        last_name:
+          type: string
+          description: Last name (required for OWNER role)
+          maxLength: 150
+      required:
       - id
       - username
     UserRegistration:
@@ -1244,10 +3069,10 @@ components:
           writeOnly: true
         role:
           $ref: '#/components/schemas/RoleEnum'
-        face_id:
+        first_name:
           type: string
-          nullable: true
-          maxLength: 32
+        last_name:
+          type: string
       required:
       - email
       - password

@@ -18,6 +18,9 @@ class IsOwnerReceiver(permissions.BasePermission):
 class PackageEntryViewSet(viewsets.ModelViewSet):
     serializer_class = PackageEntrySerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerReceiver]
+    # Class-level queryset is used by drf-spectacular to derive the pk path
+    # parameter type; runtime access still goes through ``get_queryset`` below.
+    queryset = PackageEntry.objects.all()
 
     def get_queryset(self):
         queryset = PackageEntry.objects.filter(owner=self.request.user)
