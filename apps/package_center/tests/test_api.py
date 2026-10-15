@@ -13,7 +13,9 @@ class PackageEntryAPITests(APITestCase):
             email='owner@example.com',
             username='owner',
             password='testpass123',
-            role=user_model.ROLE_OWNER,
+            role=user_model.Role.OWNER,
+            first_name='Owner',
+            last_name='Test',
         )
 
     def test_owner_can_create_package_with_datetime_strings(self):

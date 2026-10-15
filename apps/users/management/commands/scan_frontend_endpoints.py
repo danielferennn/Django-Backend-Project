@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -133,19 +133,20 @@ class Command(BaseCommand):
 
     def _get_or_create_user(self, *, email: str, username: str, role: str):
         User = get_user_model()
-        user, created = User.objects.get_or_create(
-            email=email,
-            defaults={
-                "username": username,
-                "role": role,
-            },
-        )
+        defaults = {
+            "username": username,
+            "role": role,
+        }
+        if role == User.Role.OWNER:
+            defaults.update(first_name="Diagnostic", last_name="Owner")
+        user, created = User.objects.get_or_create(email=email, defaults=defaults)
         if created:
-            user.set_password("PenlokDiag123!")
+            user.set_unusable_password()
             user.save(update_fields=["password"])
         elif user.role != role:
-            user.role = role
-            user.save(update_fields=["role"])
+            raise CommandError(
+                f"Diagnostic account {email} already has a different role; refusing to change it."
+            )
         return user
 
     def _ensure_sample_package(self, owner):
@@ -170,11 +171,14 @@ class Command(BaseCommand):
             store=store,
             name="Diagnostic Product",
             defaults={
+                "seller": seller,
                 "price": 100000,
                 "stock": 10,
                 "description": "Sample data for endpoint scan",
             },
         )
+        if product.seller_id != seller.pk:
+            raise CommandError("Diagnostic product belongs to a different seller; refusing to reassign it.")
         Transaction.objects.get_or_create(
             buyer=buyer,
             seller=seller,

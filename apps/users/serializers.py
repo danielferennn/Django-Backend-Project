@@ -1,108 +1,64 @@
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from .models import User
 
-# seperti biasa punya kita ku comment, punya mas fahmi dibawahnya
-
-# class UserRegistrationSerializerBase(serializers.ModelSerializer):
-#     password = serializers.CharField(
-#         write_only=True,
-#         required=True,
-#         style={'input_type': 'password'},
-#     )
-#     role = serializers.CharField(read_only=True)
-#     role_value = User.ROLE_BUYER
-#     allow_role_override = False
-
-#     class Meta:
-#         model = User
-#         fields = ('username', 'email', 'password', 'role', 'face_id')
-
-#     def _requested_role(self):
-#         if not self.allow_role_override:
-#             return None
-#         raw = (getattr(self, 'initial_data', None) or {}).get('role')
-#         if not raw:
-#             return None
-#         candidate = str(raw).strip().upper()
-#         normalized = User.LEGACY_ROLE_MAP.get(candidate)
-#         valid_roles = {choice[0] for choice in User.ROLE_CHOICES}
-#         if normalized in valid_roles:
-#             return normalized
-#         return None
-
-#     def create(self, validated_data):
-#         password = validated_data.pop('password')
-#         role = self._requested_role() or self.role_value
-#         user = User.objects.create_user(
-#             password=password,
-#             role=role,
-#             **validated_data,
-#         )
-#         return user
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        style={'input_type': 'password'}
-    )
-    first_name = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="Required for OWNER role"
-    )
-    last_name = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        help_text="Required for OWNER role"
-    )
+    password = serializers.CharField(write_only=True, required=True, style={'input_type': 'password'})
+    first_name = serializers.CharField(required=False, allow_blank=True)
+    last_name = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User
         fields = ('username', 'email', 'password', 'role', 'first_name', 'last_name')
-        extra_kwargs = {
-            'role': {'required': False}
-        }
+        extra_kwargs = {'role': {'required': False}}
+
+    def to_internal_value(self, data):
+        allowed_fields = {'username', 'email', 'password', 'role', 'first_name', 'last_name'}
+        unknown_fields = set(data) - allowed_fields
+        if unknown_fields:
+            raise serializers.ValidationError({
+                field: 'Unexpected field.' for field in sorted(unknown_fields)
+            })
+        return super().to_internal_value(data)
 
     def validate(self, attrs):
-        """Validasi bahwa OWNER harus memiliki first_name dan last_name"""
         role = attrs.get('role', User.Role.BUYER)
-        first_name = attrs.get('first_name', '')
-        last_name = attrs.get('last_name', '')
+        if role != User.Role.BUYER:
+            raise serializers.ValidationError({'role': 'Public registration is limited to BUYER accounts.'})
 
-        if role == User.Role.OWNER:
-            if not first_name or not last_name:
-                raise serializers.ValidationError({
-                    'first_name': 'First name is required for OWNER role.',
-                    'last_name': 'Last name is required for OWNER role.'
-                })
-
+        candidate = User(
+            username=attrs.get('username', ''),
+            email=attrs.get('email', ''),
+            first_name=attrs.get('first_name', ''),
+            last_name=attrs.get('last_name', ''),
+            role=User.Role.BUYER,
+        )
+        try:
+            validate_password(attrs['password'], user=candidate)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({'password': list(exc.messages)}) from exc
         return attrs
 
     def create(self, validated_data):
-        role = validated_data.get('role', User.Role.BUYER)
+        validated_data.pop('role', None)
+        password = validated_data.pop('password')
+        return User.objects.create_user(
+            password=password,
+            role=User.Role.BUYER,
+            **validated_data,
+        )
 
-        # Prepare user data
-        user_data = {
-            'username': validated_data['username'],
-            'email': validated_data['email'],
-            'role': role
-        }
-
-        # Tambahkan first_name dan last_name hanya untuk OWNER
-        if role == User.Role.OWNER:
-            user_data['first_name'] = validated_data.get('first_name', '')
-            user_data['last_name'] = validated_data.get('last_name', '')
-
-        # Extract password untuk dihandle terpisah
-        password = validated_data['password']
-
-        # Create user dengan password terpisah
-        user = User.objects.create_user(password=password, **user_data)
-        return user
 
 class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 'face_id', 'role')
+
+
+class UserPublicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'first_name', 'last_name')

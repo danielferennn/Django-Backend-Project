@@ -1,71 +1,88 @@
-from rest_framework import generics, permissions, status
+from drf_spectacular.utils import OpenApiParameter, extend_schema
+from rest_framework import generics, permissions, serializers, status
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-# tambahan library baru punya mas fahmi dibawah ini
-from django.contrib.auth import get_user_model
-from django.shortcuts import render
-
-from . import models as models
-from . import serializers as serializer
 from .models import User
-from .serializers import (
-    UserDetailSerializer,
-    UserRegistrationSerializer,
-)
+from .serializers import UserDetailSerializer, UserRegistrationSerializer
+from .throttling import UserLoginThrottle, UserRegistrationThrottle
+
+class UserLookupErrorSerializer(serializers.Serializer):
+    """Reusable body for ``{detail, faceid}`` DRF error responses (schema-only)."""
+
+    detail = serializers.CharField(required=False)
+    faceid = serializers.ListField(child=serializers.CharField(), required=False)
 
 
 class UserRegistrationView(generics.CreateAPIView):
-    """
-    View untuk registrasi user dengan berbagai role.
-    OWNER role memerlukan first_name dan last_name.
-    """
-
-    queryset = models.User.objects.all()
+    queryset = User.objects.all()
+    authentication_classes = []
     permission_classes = (permissions.AllowAny,)
-    serializer_class = serializer.UserRegistrationSerializer
+    throttle_classes = (UserRegistrationThrottle,)
+    serializer_class = UserRegistrationSerializer
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
-
-        # Validasi data
-        if serializer.is_valid():
-            user = serializer.save()
-
-            # Response berbeda berdasarkan role
-            response_data = {
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(
+            {
                 'message': 'User registered successfully',
                 'user': {
                     'id': user.id,
                     'username': user.username,
                     'email': user.email,
                     'role': user.role,
-                }
-            }
+                },
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
-            # Tambahkan info khusus untuk OWNER
-            if user.role == models.User.Role.OWNER:
-                response_data['user']['first_name'] = user.first_name
-                response_data['user']['last_name'] = user.last_name
-                response_data['user']['face_id'] = user.face_id
-                response_data['message'] = 'Owner registered successfully. Face ID generated.'
-
-            return Response(response_data, status=status.HTTP_201_CREATED)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class Usergetrole(APIView):
-    def get(self,request):
-        faceidowner=request.query_params.get('faceid', None)
-        # items=models.User.objects.filter(role=models.User.Role.OWNER)
-        items=models.User.objects.get(face_id=faceidowner)
-        userdetail=serializer.UserDetailSerializer(items)
-        # userdetail=serializer.UserDetailSerializer(items,many=True)
-        return Response(userdetail.data,status=status.HTTP_200_OK)
+    permission_classes = (permissions.IsAuthenticated,)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='faceid',
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description='Face id of the user to look up.',
+            ),
+        ],
+        responses={
+            200: UserDetailSerializer,
+            400: UserLookupErrorSerializer,
+            403: UserLookupErrorSerializer,
+            404: UserLookupErrorSerializer,
+        },
+        description=(
+            'Look up a user profile by face id. Non-staff callers may only look '
+            'up their own record; others receive 404.'
+        ),
+    )
+    def get(self, request):
+        face_id = request.query_params.get('faceid')
+        if not face_id:
+            raise ValidationError({'faceid': 'This query parameter is required.'})
+        try:
+            user = User.objects.get(face_id=face_id)
+        except User.DoesNotExist as exc:
+            raise NotFound('User not found.') from exc
+        if not request.user.is_staff and user.pk != request.user.pk:
+            raise NotFound('User not found.')
+        return Response(UserDetailSerializer(user).data, status=status.HTTP_200_OK)
+
 
 class UserLoginView(TokenObtainPairView):
+    authentication_classes = []
     permission_classes = (permissions.AllowAny,)
+    throttle_classes = (UserLoginThrottle,)
+
 
 class UserProfileView(generics.RetrieveAPIView):
     queryset = User.objects.all()

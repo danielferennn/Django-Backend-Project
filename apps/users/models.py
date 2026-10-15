@@ -59,28 +59,21 @@ class User(AbstractUser):
     REQUIRED_FIELDS = ['username']
 
     def clean(self):
-        """Validasi bahwa OWNER harus memiliki first_name dan last_name"""
         super().clean()
         if self.role == self.Role.OWNER:
-            if not self.first_name or not self.last_name:
-                raise ValidationError({
-                    'first_name': 'First name is required for OWNER role.',
-                    'last_name': 'Last name is required for OWNER role.'
-                })
+            errors = {}
+            if not self.first_name.strip():
+                errors['first_name'] = 'First name is required for OWNER role.'
+            if not self.last_name.strip():
+                errors['last_name'] = 'Last name is required for OWNER role.'
+            if errors:
+                raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
         if self.role:
             self.role = self.role.upper()
-        # Generate face_id hanya untuk OWNER
         if self.role == self.Role.OWNER and not self.face_id:
             self.face_id = generate_uid2()
-        # Hapus face_id jika role berubah bukan OWNER
-        elif self.role != self.Role.OWNER:
-            self.face_id = None
-            # Clear first_name dan last_name jika bukan OWNER
-            self.first_name = ''
-            self.last_name = ''
-
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -91,45 +84,3 @@ class User(AbstractUser):
     class Meta:
         verbose_name = 'User'
         verbose_name_plural = 'Users'
-
-    # ROLE_BUYER = 'buyer'
-    # ROLE_OWNER = 'owner'
-    # ROLE_COURIER = 'courier'
-    # ROLE_ADMIN = 'admin'
-
-    # ROLE_CHOICES = (
-    #     (ROLE_BUYER, 'Buyer'),
-    #     (ROLE_OWNER, 'Owner'),
-    # )
-    # EXTRA_ROLE_CHOICES = (
-    #     (ROLE_COURIER, 'Courier'),
-    #     (ROLE_ADMIN, 'Admin'),
-    # )
-
-    # LEGACY_ROLE_MAP = {
-    #     'BUYER': ROLE_BUYER,
-    #     'OWNER': ROLE_OWNER,
-    #     'SELLER': ROLE_OWNER,
-    #     'COURIER': ROLE_COURIER,
-    #     'ADMIN': ROLE_ADMIN,
-    # }
-
-    # first_name = None
-    # last_name = None
-
-    # email = models.EmailField(unique=True)
-    # role = models.CharField(
-    #     max_length=20,
-    #     choices=ROLE_CHOICES + EXTRA_ROLE_CHOICES,
-    #     default=ROLE_BUYER,
-    # )
-    # face_id = models.CharField(max_length=32, unique=True, null=True, blank=True)
-
-    # USERNAME_FIELD = 'email'
-    # REQUIRED_FIELDS = ['username']
-
-    # def save(self, *args, **kwargs):
-    #     normalized = self.LEGACY_ROLE_MAP.get(self.role, self.role)
-    #     if normalized in dict(self.ROLE_CHOICES + self.EXTRA_ROLE_CHOICES):
-    #         self.role = normalized
-    #     super().save(*args, **kwargs)
