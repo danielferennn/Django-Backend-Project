@@ -1,15 +1,23 @@
-# Python venv
+# Python environments and generated files
 venv/
 .venv/
+/loker/
 __pycache__/
 *.pyc
 
-# Django specific
+# Django data and local configuration
 db.sqlite3
 media/
+private_media/
+logs/
+.env
+.env.*
+!.env.example
+
+# Local model artifacts
+/hasiltraining/lbph_model.xml
+apps/hasiltraining/lbph_model.xml
 
 # IDEs
 .vscode/
 .idea/
-
-.env
