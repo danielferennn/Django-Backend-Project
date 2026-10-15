@@ -1,3 +1,5 @@
+import uuid
+
 from django.conf import settings
 from django.db import models
 
@@ -5,10 +7,20 @@ from django.db import models
 class IoTEvent(models.Model):
     class EventType(models.TextChoices):
         GENERIC = 'GENERIC', 'Generic'
-        DEVICE = 'DEVICE', 'Device Event'
-        LOCKER_OPENED = 'LOCKER_OPENED', 'Locker Opened'
-        ITEM_DETECTED = 'ITEM_DETECTED', 'Item Detected'
+        DEVICE = 'DEVICE', 'Device event'
+        LOCKER_OPENED = 'LOCKER_OPENED', 'Locker opened'
+        ITEM_DETECTED = 'ITEM_DETECTED', 'Item detected'
+        ITEM_REMOVED = 'ITEM_REMOVED', 'Item removed'
+        COMMAND_FAILED = 'COMMAND_FAILED', 'Command failed'
 
+    event_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    command = models.ForeignKey(
+        'lockers.LockerRequest',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='device_events',
+    )
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -28,4 +40,4 @@ class IoTEvent(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.event_type} @ {self.created_at.isoformat()}"
+        return f'{self.event_type} @ {self.created_at.isoformat()}'

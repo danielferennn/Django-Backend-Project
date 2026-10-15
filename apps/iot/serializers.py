@@ -1,33 +1,36 @@
+import json
+
 from rest_framework import serializers
 
 from .models import IoTEvent
 
+MAX_EVENT_PAYLOAD_BYTES = 4096
+DEVICE_EVENT_TYPES = (
+    IoTEvent.EventType.LOCKER_OPENED,
+    IoTEvent.EventType.ITEM_DETECTED,
+    IoTEvent.EventType.ITEM_REMOVED,
+    IoTEvent.EventType.COMMAND_FAILED,
+)
+
 
 class IoTEventSerializer(serializers.ModelSerializer):
+    command_id = serializers.UUIDField(source='command.command_id', read_only=True)
+
     class Meta:
         model = IoTEvent
-        fields = ['id', 'user', 'event_type', 'payload', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['id', 'event_id', 'command_id', 'event_type', 'payload', 'created_at']
+        read_only_fields = fields
 
 
 class IoTIngestSerializer(serializers.Serializer):
-    user_id = serializers.IntegerField(required=False, allow_null=True)
-    event_type = serializers.ChoiceField(choices=IoTEvent.EventType.choices, required=False)
-    payload = serializers.JSONField()
+    event_id = serializers.UUIDField()
+    command_id = serializers.UUIDField()
+    event_type = serializers.ChoiceField(choices=DEVICE_EVENT_TYPES)
+    payload = serializers.JSONField(required=False, default=dict)
 
-    def create(self, validated_data):
-        user_id = validated_data.pop('user_id', None)
-        user = None
-        if user_id is not None:
-            from django.contrib.auth import get_user_model
-
-            User = get_user_model()
-            user = User.objects.filter(id=user_id).first()
-
-        event_type = validated_data.get('event_type') or IoTEvent.EventType.GENERIC
-        return IoTEvent.objects.create(
-            user=user,
-            event_type=event_type,
-            payload=validated_data['payload'],
-        )
-
+    def validate_payload(self, payload):
+        if not isinstance(payload, dict):
+            raise serializers.ValidationError('Event payload must be a JSON object.')
+        if len(json.dumps(payload, separators=(',', ':'), ensure_ascii=True).encode('utf-8')) > MAX_EVENT_PAYLOAD_BYTES:
+            raise serializers.ValidationError('Event payload exceeds 4096 bytes.')
+        return payload

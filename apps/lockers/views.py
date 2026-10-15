@@ -1,156 +1,209 @@
-from django.conf import settings
-from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import generics, permissions, status
+from django.shortcuts import get_object_or_404
+
+from drf_spectacular.utils import extend_schema
+from rest_framework import generics, permissions, serializers, status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.iot.models import IoTEvent
-from apps.marketplace.models import Transaction
-from apps.notifications.tasks import push_notification_task
-from apps.users.models import User
-
-from .models import Delivery, Locker, LockerLog, LockerRequest
+from .models import Delivery, LockerLog, LockerRequest
 from .permissions import IsCourierUser
-from .serializers import LockerLogSerializer, OtpValidationSerializer
-from .services import BlynkAPIService
-from .tasks import send_notification_task
+from .serializers import (
+    LockerCommandReconciliationSerializer,
+    LockerLogSerializer,
+    LockerRequestSerializer,
+)
+from .services import (
+    DeviceCommandNotFound,
+    InvalidLockerWorkflow,
+    LockerUnavailable,
+    ReconciliationDenied,
+    reconcile_locker_command,
+    request_delivery_inbound,
+    request_delivery_retrieval,
+    request_delivery_storage,
+    request_delivery_transfer,
+)
 
-@extend_schema(exclude=True)
+
+class ReceiptNumberSerializer(serializers.Serializer):
+    """Schema-only request body for inbound delivery verification (no runtime use)."""
+
+    receipt_number = serializers.CharField(help_text='Courier delivery receipt number to verify.')
+
+class LockerCommandErrorSerializer(serializers.Serializer):
+    """Reusable locker error body.
+
+    ``_command_response`` returns ``{'error': ...}`` for handled failures while
+    DRF returns ``{'detail': ...}`` for permission/not-found; both keys are
+    optional so one schema covers either shape.
+    """
+
+    error = serializers.CharField(required=False)
+    detail = serializers.CharField(required=False)
+
+def _command_response(request, operation, **kwargs):
+    try:
+        command = operation(**kwargs)
+    except PermissionError as exc:
+        raise PermissionDenied(str(exc)) from exc
+    except Delivery.DoesNotExist:
+        return Response({'error': 'Delivery not found.'}, status=status.HTTP_404_NOT_FOUND)
+    except LockerUnavailable:
+        return Response({'error': 'No suitable locker is available.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+    except InvalidLockerWorkflow:
+        return Response({'error': 'The delivery is not in a state that permits this operation.'}, status=status.HTTP_409_CONFLICT)
+    return Response(
+        LockerRequestSerializer(command, context={'request': request}).data,
+        status=status.HTTP_202_ACCEPTED,
+    )
+
+
 class VerifyDeliveryView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsCourierUser]
 
+    @extend_schema(
+        request=ReceiptNumberSerializer,
+        responses={
+            202: LockerRequestSerializer,
+            400: LockerCommandErrorSerializer,
+            403: LockerCommandErrorSerializer,
+            404: LockerCommandErrorSerializer,
+            409: LockerCommandErrorSerializer,
+            503: LockerCommandErrorSerializer,
+        },
+        description=(
+            'Courier verifies an inbound delivery by receipt number and receives '
+            'the queued locker command (MQTT dispatch). Courier-only.'
+        ),
+    )
     def post(self, request, *args, **kwargs):
         receipt_number = request.data.get('receipt_number')
-        if not receipt_number:
+        if not isinstance(receipt_number, str) or not receipt_number.strip():
             return Response({'error': 'Receipt number is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        delivery = get_object_or_404(
+            Delivery,
+            receipt_number=receipt_number.strip(),
+            courier=request.user,
+        )
+        return _command_response(
+            request,
+            request_delivery_inbound,
+            delivery_id=delivery.pk,
+            courier=request.user,
+        )
 
-        try:
-            delivery = Delivery.objects.get(receipt_number=receipt_number, status=Delivery.DeliveryStatus.PENDING)
-            inbound_locker = delivery.locker
-            
-            if inbound_locker.status != Locker.LockerStatus.AVAILABLE:
-                return Response({'error': 'Inbound locker is currently occupied.'}, status=status.HTTP_409_CONFLICT)
 
-            # --- LOGIKA BARU: Gunakan GPIO langsung ---
-            gpio_pin = inbound_locker.gpio_pin
-            if gpio_pin is None:
-                raise ValueError(f"GPIO pin for inbound locker {inbound_locker.number} is not configured.")
-            
-            # Panggil fungsi untuk membuka loker via GPIO
-            _publish_mqtt_command(inbound_locker.number, "open")
-            # --- AKHIR LOGIKA BARU ---
-            
-            delivery.status = Delivery.DeliveryStatus.VERIFIED
-            delivery.save()
+class DeliveryTransferView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsCourierUser]
 
-            inbound_locker.status = Locker.LockerStatus.OCCUPIED
-            inbound_locker.last_opened_by = request.user
-            inbound_locker.save()
-            
-            LockerLog.objects.create(
-                locker=inbound_locker,
-                user=request.user,
-                action=LockerLog.Action.OPEN,
-                details=f"Courier verified receipt: {receipt_number}"
-            )
-            
-            return Response({'message': 'Receipt verified. Locker is open.'}, status=status.HTTP_200_OK)
+    @extend_schema(
+        request=None,
+        responses={
+            202: LockerRequestSerializer,
+            403: LockerCommandErrorSerializer,
+            404: LockerCommandErrorSerializer,
+            409: LockerCommandErrorSerializer,
+            503: LockerCommandErrorSerializer,
+        },
+        description='Courier transfers an inbound delivery to its storage locker; returns the queued command.',
+    )
+    def post(self, request, delivery_id):
+        return _command_response(
+            request,
+            request_delivery_transfer,
+            delivery_id=delivery_id,
+            courier=request.user,
+        )
 
-        except Delivery.DoesNotExist:
-            return Response({'error': 'Invalid or already processed receipt number.'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-@extend_schema(exclude=True)
-class ConfirmDepositWebhookView(APIView):
-    permission_classes = [permissions.AllowAny]
+class DeliveryStorageView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsCourierUser]
 
-    def post(self, request, *args, **kwargs):
-        try:
-            delivery = Delivery.objects.get(status=Delivery.DeliveryStatus.VERIFIED)
-            inbound_locker = delivery.locker
-            storage_locker = Locker.objects.filter(type=Locker.LockerType.STORAGE, status=Locker.LockerStatus.AVAILABLE).first()
-            if not storage_locker:
-                return Response({'error': 'No available storage locker.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    @extend_schema(
+        request=None,
+        responses={
+            202: LockerRequestSerializer,
+            403: LockerCommandErrorSerializer,
+            404: LockerCommandErrorSerializer,
+            409: LockerCommandErrorSerializer,
+            503: LockerCommandErrorSerializer,
+        },
+        description='Courier stores an inbound delivery in its assigned storage locker; returns the queued command.',
+    )
+    def post(self, request, delivery_id):
+        return _command_response(
+            request,
+            request_delivery_storage,
+            delivery_id=delivery_id,
+            courier=request.user,
+        )
 
-            delivery.status = Delivery.DeliveryStatus.COMPLETED
-            delivery.save()
-            
-            inbound_locker.status = Locker.LockerStatus.AVAILABLE
-            inbound_locker.save()
-            
-            storage_locker.status = Locker.LockerStatus.OCCUPIED
-            storage_locker.save()
 
-            LockerLog.objects.create(locker=inbound_locker, action=LockerLog.Action.DEPOSIT, details="Item moved to storage locker.")
-            LockerLog.objects.create(locker=storage_locker, action=LockerLog.Action.DEPOSIT, details=f"Item from receipt {delivery.receipt_number} stored.")
-
-            owner_user_id = 1 
-            send_notification_task.delay(
-                user_id=owner_user_id, 
-                message=f"Barang Anda dengan resi {delivery.receipt_number} telah berhasil disimpan."
-            )
-            return Response({'message': 'Deposit confirmed.'}, status=status.HTTP_200_OK)
-        except Delivery.DoesNotExist:
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-@extend_schema(exclude=True)
-class OpenStorageLockerView(APIView):
-    """
-    Endpoint untuk membuka loker penyimpanan (1, 2, atau 3) secara langsung
-    melalui permintaan ke database yang akan diproses oleh sistem IoT.
-    """
+class DeliveryRetrieveView(APIView):
     permission_classes = [permissions.IsAuthenticated]
-    VALID_SLOTS = {'1', '2', '3'} # Asumsi nomor loker di DB adalah string '1', '2', '3'
 
-    def post(self, request, locker_slot=None, *args, **kwargs):
-        requested_slot = locker_slot
-        if requested_slot is None:
-            requested_slot = request.data.get('locker_slot')
-        if requested_slot is None:
-            requested_slot = request.data.get('locker_number')
+    @extend_schema(
+        request=None,
+        responses={
+            202: LockerRequestSerializer,
+            403: LockerCommandErrorSerializer,
+            404: LockerCommandErrorSerializer,
+            409: LockerCommandErrorSerializer,
+            503: LockerCommandErrorSerializer,
+        },
+        description='Owner retrieves their stored delivery; returns the queued locker command.',
+    )
+    def post(self, request, delivery_id):
+        return _command_response(
+            request,
+            request_delivery_retrieval,
+            delivery_id=delivery_id,
+            owner=request.user,
+        )
 
+
+class LockerCommandStatusView(generics.RetrieveAPIView):
+    serializer_class = LockerRequestSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'command_id'
+    lookup_url_kwarg = 'command_id'
+    queryset = LockerRequest.objects.select_related('locker', 'transaction', 'delivery')
+
+    def get_object(self):
+        command = get_object_or_404(self.get_queryset(), command_id=self.kwargs['command_id'])
+        user = self.request.user
+        permitted = user.is_staff or command.requested_by_id == user.pk
+        if command.transaction_id:
+            permitted = permitted or user.pk in {command.transaction.buyer_id, command.transaction.seller_id}
+        if command.delivery_id:
+            permitted = permitted or user.pk in {command.delivery.owner_id, command.delivery.courier_id}
+        if not permitted:
+            raise PermissionDenied('You are not a participant in this locker command.')
+        return command
+
+
+class LockerCommandReconciliationView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    @extend_schema(request=LockerCommandReconciliationSerializer, responses=LockerRequestSerializer)
+    def post(self, request, command_id):
+        serializer = LockerCommandReconciliationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         try:
-            slot_value = str(requested_slot)
-        except (TypeError, ValueError):
-            return Response({'error': 'locker_slot must be provided.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if slot_value not in self.VALID_SLOTS:
-            return Response({'error': f'locker_slot must be one of {self.VALID_SLOTS}.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            # 1. Cari loker di database berdasarkan nomornya
-            locker_to_open = Locker.objects.get(number=slot_value, type=Locker.LockerType.STORAGE)
-
-            # 2. Buat permintaan pembukaan loker di database
-            LockerRequest.objects.create(
-                locker_number=slot_value,
-                requested_by=request.user,
-                fulfilled=False
+            command = reconcile_locker_command(
+                command_id=command_id,
+                actor=request.user,
+                **serializer.validated_data,
             )
-
-            # 3. Catat aktivitas di log
-            LockerLog.objects.create(
-                locker=locker_to_open,
-                user=request.user,
-                action=LockerLog.Action.OPEN,
-                details=f"Locker {slot_value} opening request sent from user {request.user.email} via mobile app."
+        except DeviceCommandNotFound:
+            return Response({'error': 'Locker command not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except ReconciliationDenied:
+            return Response(
+                {'error': 'This command cannot be reconciled with the selected decision.'},
+                status=status.HTTP_409_CONFLICT,
             )
-
-            return Response({
-                'status': 'success',
-                'message': f'Locker {slot_value} opening request sent.',
-            }, status=status.HTTP_200_OK)
-
-        except Locker.DoesNotExist:
-            return Response({'error': f'Storage locker number {slot_value} not found.'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
+        return Response(LockerRequestSerializer(command).data, status=status.HTTP_200_OK)
 
 
 class LockerLogListView(generics.ListAPIView):
@@ -158,64 +211,7 @@ class LockerLogListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        queryset = LockerLog.objects.select_related('locker', 'user')
-        user = self.request.user
-        if getattr(user, 'is_staff', False):
+        queryset = LockerLog.objects.select_related('locker', 'user', 'command')
+        if self.request.user.is_staff:
             return queryset
-        role = getattr(user, 'role', None)
-        if role == User.Role.OWNER:
-            return queryset.filter(locker__last_opened_by=user)
-        return queryset.filter(user=user)
-
-
-def _require_device_token(request):
-    expected = getattr(settings, 'SMARTLOCKER_DEVICE_TOKEN', None)
-    if not expected:
-        return
-    provided = request.headers.get('X-Device-Token')
-    if provided != expected:
-        raise PermissionDenied('Invalid device token')
-
-
-class ValidateOtpView(APIView):
-    permission_classes = [permissions.AllowAny]
-
-    @extend_schema(request=OtpValidationSerializer, responses={'200': OpenApiResponse(description='OTP validation success')})
-    def post(self, request, *args, **kwargs):
-        _require_device_token(request)
-        serializer = OtpValidationSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        otp_code = serializer.validated_data['otp']
-
-        transaction = Transaction.objects.filter(otp=otp_code).order_by('-updated_at').first()
-        if not transaction:
-            return Response({'status': 'invalid'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if transaction.status != Transaction.TransactionStatus.RELEASED:
-            transaction.status = Transaction.TransactionStatus.RELEASED
-            transaction.save(update_fields=['status', 'updated_at'])
-
-        event = IoTEvent.objects.create(
-            user=transaction.buyer,
-            event_type=IoTEvent.EventType.DEVICE,
-            payload={'event': 'otp_validated', 'transaction_id': transaction.id},
-        )
-
-        push_notification_task(
-            user_ids=[transaction.seller_id],
-            title='OTP Validated',
-            body=f'OTP {otp_code} telah divalidasi. Locker siap dibuka.'
-        )
-
-        if transaction.buyer_id:
-            push_notification_task(
-                user_ids=[transaction.buyer_id],
-                title='OTP Digunakan',
-                body='Kode OTP Anda digunakan untuk membuka locker.'
-            )
-
-        return Response({
-            'status': 'ok',
-            'transaction_id': transaction.id,
-            'event_id': event.id,
-        }, status=status.HTTP_200_OK)
+        return queryset.filter(user=self.request.user)

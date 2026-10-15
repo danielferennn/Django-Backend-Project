@@ -1,40 +1,42 @@
 from decimal import Decimal
-from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from django.urls import reverse
-from django.test import TestCase
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.marketplace.models import Store, Product, Transaction
+from apps.marketplace.tests.test_manual_commerce import PrivateMediaIsolationMixin, make_image_upload
 from apps.notifications.models import Notification
 
 
-class MarketplaceSellerScopeTests(TestCase):
+@override_settings(MANUAL_PAYMENT_INSTRUCTIONS='Transfer to test account 1234')
+class MarketplaceSellerScopeTests(PrivateMediaIsolationMixin, TestCase):
     def setUp(self):
+        super().setUp()
         self.User = get_user_model()
-        owner_role = getattr(self.User, 'ROLE_OWNER', self.User.Role.OWNER)
-        buyer_role = getattr(self.User, 'ROLE_BUYER', self.User.Role.BUYER)
         self.seller_a = self.User.objects.create_user(
             email='seller_a@example.com',
             username='seller_a',
             password='pass123',
-            role=owner_role,
+            role=self.User.Role.OWNER,
+            first_name='Seller',
+            last_name='A',
         )
         self.seller_b = self.User.objects.create_user(
             email='seller_b@example.com',
             username='seller_b',
             password='pass123',
-            role=owner_role,
+            role=self.User.Role.OWNER,
+            first_name='Seller',
+            last_name='B',
         )
         self.buyer = self.User.objects.create_user(
             email='buyer@example.com',
             username='buyer_user',
             password='pass123',
-            role=buyer_role,
+            role=self.User.Role.BUYER,
         )
 
         self.store_a = Store.objects.create(owner=self.seller_a, name='A Store')
@@ -69,29 +71,26 @@ class MarketplaceSellerScopeTests(TestCase):
 
     def test_seller_scoping_and_notifications(self):
         create_url = reverse('create-transaction')
-        payment_data = {
-            'payment_reference': 'ref-123',
-            'qris_payload': 'payload',
-            'expires_at': timezone.now(),
-            'payment_url': 'https://example.com/pay/ref-123',
-        }
-
-        with patch('apps.marketplace.views.PaymentGatewayService') as pg_mock:
-            pg_instance = pg_mock.return_value
-            pg_instance.create_payment.return_value = (True, payment_data)
-            response = self.buyer_client.post(
-                create_url,
-                {'product_id': self.product.id, 'quantity': 1},
-                format='json',
-            )
+        response = self.buyer_client.post(
+            create_url,
+            {'product_id': self.product.id, 'quantity': 1},
+            format='json',
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data['manual_payment_instructions'], 'Transfer to test account 1234')
         transaction = Transaction.objects.get(id=response.data['id'])
         self.assertEqual(transaction.seller, self.seller_a)
+        self.assertEqual(transaction.status, Transaction.TransactionStatus.PENDING)
 
-        transaction.status = Transaction.TransactionStatus.NEED_VERIFICATION
-        transaction.save(update_fields=['status'])
+        upload_url = reverse('transaction-payment-proof', args=[transaction.id])
+        proof_resp = self.buyer_client.post(
+            upload_url, {'payment_proof': make_image_upload()}, format='multipart'
+        )
+        self.assertEqual(proof_resp.status_code, status.HTTP_200_OK)
+        transaction.refresh_from_db()
+        self.assertEqual(transaction.status, Transaction.TransactionStatus.NEED_VERIFICATION)
 
-        list_url = '/api/v1/marketplace/transactions/?role=seller&status=PENDING_VERIFICATION'
+        list_url = '/api/v1/marketplace/transactions/?role=seller&status=NEED_VERIFICATION'
         seller_a_resp = self.seller_a_client.get(list_url)
         self.assertEqual(seller_a_resp.status_code, status.HTTP_200_OK)
         self.assertIn(transaction.id, self._extract_ids(seller_a_resp.data))
@@ -99,11 +98,6 @@ class MarketplaceSellerScopeTests(TestCase):
         seller_b_resp = self.seller_b_client.get(list_url)
         self.assertEqual(seller_b_resp.status_code, status.HTTP_200_OK)
         self.assertNotIn(transaction.id, self._extract_ids(seller_b_resp.data))
-
-        upload_url = reverse('transaction-payment-proof', args=[transaction.id])
-        proof_file = SimpleUploadedFile('proof.jpg', b'filecontent', content_type='image/jpeg')
-        proof_resp = self.buyer_client.post(upload_url, {'payment_proof': proof_file}, format='multipart')
-        self.assertEqual(proof_resp.status_code, status.HTTP_200_OK)
         self.assertEqual(Notification.objects.filter(user=self.seller_a).count(), 1)
         self.assertEqual(Notification.objects.filter(user=self.seller_b).count(), 0)
 
@@ -113,3 +107,5 @@ class MarketplaceSellerScopeTests(TestCase):
 
         seller_a_approve = self.seller_a_client.post(approve_url)
         self.assertEqual(seller_a_approve.status_code, status.HTTP_200_OK)
+        transaction.refresh_from_db()
+        self.assertEqual(transaction.status, Transaction.TransactionStatus.PAYMENT_VERIFIED)
